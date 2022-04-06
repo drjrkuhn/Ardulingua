@@ -86,6 +86,8 @@ namespace dprop {
     template <typename T, typename DEV>
     class LocalProp : public LocalProp_Base<T, DEV> {
      public:
+         //using LocalProp_Base<T,DEV>::getCachedValue;
+
         /** A local read/write property that will be initialized from the PropInfo initialValue. */
         LocalProp() : LocalProp(false, true) {}
 

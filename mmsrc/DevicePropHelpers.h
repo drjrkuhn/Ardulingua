@@ -284,7 +284,7 @@ namespace dprop {
         char* resBuf = new char[MM::MaxStrLength];
         int ret      = device->GetProperty(propName, resBuf);
         if (ret == DEVICE_OK) {
-            value.Assign(resBuf);
+            value.assign(resBuf);
         }
         delete resBuf;
         return ret;

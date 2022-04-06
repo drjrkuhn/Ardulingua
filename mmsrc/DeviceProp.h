@@ -155,9 +155,9 @@ namespace dprop {
         void setNotifyChange(NotifyChangeFunction& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
 
         /** Sets the Device Property, which updates the getCachedValue */
-        int setProperty(const T& val) {
+        int set(const T& val) {
             int ret;
-            if ((ret = SetDeviceProp(device_, name_, val)) != DEVICE_OK) {
+            if ((ret = Assign(device_, name_, val)) != DEVICE_OK) {
                 return ret;
             };
             return notifyChangeH(val);
