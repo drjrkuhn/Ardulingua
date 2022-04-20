@@ -8,5 +8,5 @@ set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
 
 add_subdirectory(src)
-# add_subdirectory(test)
+add_subdirectory(tests)
 

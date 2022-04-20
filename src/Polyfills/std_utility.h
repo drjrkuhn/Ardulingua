@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef __POLYFILLS_UTILITY_H__
-#define __POLYFILLS_UTILITY_H__
+#ifndef __POLYFILLS_STD_UTILITY_H__
+#define __POLYFILLS_STD_UTILITY_H__
 
 // TODO: Substitute Andy Brown's STL lib for arduino
 // https://andybrown.me.uk/2011/01/15/the-standard-template-library-stl-for-avr-with-c-streams/
@@ -43,4 +43,4 @@ namespace std {
     #endif // #if __has_include(<utility>)
 #endif     // #ifdef __has_include
 
-#endif // __POLYFILLS_UTILITY_H__
+#endif // __POLYFILLS_STD_UTILITY_H__
