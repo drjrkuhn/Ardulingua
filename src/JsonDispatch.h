@@ -4,6 +4,7 @@
     #define __JSONDISPATCH_H__
 
     #include "Polyfills/std_utility.h"
+    #include "Polyfills/sys_timing.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
     #include <ArduinoJson.h>
@@ -31,38 +32,6 @@
     #endif
 
 namespace rdl {
-
-inline void sys_yield(void);
-inline void sys_delay(uint32_t msec);
-inline void delayMicroseconds(uint32_t usec);
-inline uint32_t sys_millis(void);
-inline uint32_t sys_micros(void);
-
-#ifdef __has_include
-    #if __has_include(<Arduino.h>)
-        #include <Arduino.h>
-        inline void sys_yield(void) {  yield();}
-        inline void sys_delay(uint32_t msec) {  delay(msec);}
-        inline void delayMicroseconds(uint32_t usec) {  delayMicroseconds(usec);}
-        inline uint32_t sys_millis(void) { return millis();}
-        inline uint32_t sys_micros(void) { return micros();}
-    #else
-        #include <thread>
-        #include <chrono>
-        inline void sys_yield(void) { std::this_thread::yield();}
-        inline void sys_delay(uint32_t msec) { std::this_thread::sleep_for(std::chrono::milliseconds(msec));}
-        inline void delayMicroseconds(uint32_t usec) { std::this_thread::sleep_for(std::chrono::microseconds(msec));}
-        inline uint32_t sys_millis(void) { 
-            auto now = std::chrono::system_clock::now().time_since_epoch();
-            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();        
-        }
-        inline uint32_t sys_micros(void) { 
-            auto now = std::chrono::system_clock::now().time_since_epoch();
-            auto millis = std::chrono::duration_cast<std::chrono::microseconds>(now).count();        
-        }
-    #endif
-#endif
-    
 
     /************************************************************************
      * # Json Dispatch
@@ -147,9 +116,6 @@ inline uint32_t sys_micros(void);
     //     bool operator()(char const* a, char const* b) const { return std::strcmp(a, b) < 0; }
     // };
 
-    template <class STR>
-    using DispatchMapT = std::unordered_map<STR, json_delegate>; // std::unordered_map<const char*, json_delegate, cmp_str>;
-
     constexpr size_t BUFFER_SIZE = 256;
 
     namespace svc {
@@ -176,7 +142,9 @@ inline uint32_t sys_micros(void);
     class protocol_base {
      public:
         protocol_base(S& istream, S& ostream, uint8_t* buffer_data, size_t buffer_size, int max_retries = 3)
-            : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size), max_retries_(max_retries) {}
+            : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
+                max_retries_ = max_retries;
+            }
 
         template <typename... PARAMS>
         int serialize_call(JsonDocument& msgdoc, size_t& msgsize, STR method, const int id, PARAMS... args) {
@@ -195,7 +163,7 @@ inline uint32_t sys_micros(void);
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_ENCODING_ERROR;
-            logger_.print("\tserialized ") + logger_.println(msgdoc);
+            logger_.print("\tserialized ") && logger_.println(msgdoc);
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -215,7 +183,7 @@ inline uint32_t sys_micros(void);
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            logger_.print("\tserialized") + logger_.println(msgdoc);
+            logger_.print("\tserialized") && logger_.println(msgdoc);
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -233,7 +201,7 @@ inline uint32_t sys_micros(void);
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            logger_.print("\tserialized") + logger_.println(msgdoc);
+            logger_.print("\tserialized") && logger_.println(msgdoc);
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -249,7 +217,7 @@ inline uint32_t sys_micros(void);
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") + logger_.println(msgdoc);
+            logger_.print("\tdeserialized") && logger_.println(msgdoc);
             id = 37;
             if (!msgdoc.containsKey(RK_METHOD))
                 return ERROR_JSON_INVALID_REQUEST;
@@ -271,7 +239,7 @@ inline uint32_t sys_micros(void);
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") + logger_.println(msgdoc);
+            logger_.print("\tdeserialized") && logger_.println(msgdoc);
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
             if (jvid.isNull())
@@ -297,7 +265,7 @@ inline uint32_t sys_micros(void);
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") + logger_.println(msgdoc);
+            logger_.print("\tdeserialized") && logger_.println(msgdoc);
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
             if (jvid.isNull() || jvid.as<size_t>() != msg_id)
@@ -307,7 +275,7 @@ inline uint32_t sys_micros(void);
         }
 
         LOG& logger() { return logger_; }
-        LOG& set_logger(LOG& log) {
+        LOG& logger(LOG& log) {
             logger_ = log;
             return logger_;
         }
@@ -315,9 +283,10 @@ inline uint32_t sys_micros(void);
      protected:
         S& istream_;
         S& ostream_;
-        int max_retries_;
         svc::buffer buffer_;
-        LOG& logger_;
+        int max_retries_;
+        LOG EMPTY_LOGGER;
+        LOG& logger_ = EMPTY_LOGGER;
     };
 
     /************************************************************************
@@ -326,7 +295,9 @@ inline uint32_t sys_micros(void);
     template <class S, class MAP, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
     class jsonserver : public protocol_base<S, STR, LOG> {
      public:
-        using BaseT = protocol_base<S, STR, LOG>;
+        typedef protocol_base<S, STR, LOG> BaseT;
+        using BaseT::logger;
+
         jsonserver(S& istream, S& ostream, MAP& map, int max_retries = 2)
             : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries),
               dispatch_map_(map) {
@@ -340,7 +311,7 @@ inline uint32_t sys_micros(void);
             }
             // read message
             size_t msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-            logger_.print("SERVER << ") + logger_.print_escaped(buffer_.data(), msgsize, "[]") + logger_.println();
+            logger_.print("SERVER << ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -371,19 +342,18 @@ inline uint32_t sys_micros(void);
                 size_t writesize = ostream_.write(buffer_.data(), msgsize);
                 if (writesize < msgsize)
                     return ERROR_JSON_SEND_ERROR;
-                logger_.print("SERVER >> ") + logger_.print_escaped(buffer_.data(), msgsize, "[]") + logger_.println();
+                logger_.print("SERVER >> ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
             }
             return ERROR_OK;
         }
 
      protected:
-        MAP& dispatch_map_;
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
+        using BaseT::max_retries_;
         using BaseT::logger_;
-        using BaseT::logger;
-        using BaseT::set_logger;
+        MAP& dispatch_map_;
         uint8_t buffer_data_[BUFSIZE];
     };
 
@@ -393,16 +363,17 @@ inline uint32_t sys_micros(void);
     template <class S, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
     class jsonclient : protocol_base<S, STR, LOG> {
      public:
-        using BaseT = protocol_base<S, STR, LOG>;
+        typedef protocol_base<S, STR, LOG> BaseT;
+        using BaseT::logger;
 
         jsonclient(S& istream, S& ostream, long reply_wait_ms = 200, int max_retries = 2)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE), // buffer_(buffer_data_, BUFSIZE),
-              reply_wait_ms_(reply_wait_ms), max_retires_(max_retries), nextid_(1) {
+            : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries), // buffer_(buffer_data_, BUFSIZE),
+              reply_wait_ms_(reply_wait_ms), nextid_(1) {
         }
 
         template <typename... PARAMS>
         int call(const char* method, PARAMS... args) {
-            int tries    = max_retires_;
+            int tries    = BaseT::max_retires_;
             int last_err = ERROR_OK;
             size_t msgsize;
             while (tries-- > 0) {
@@ -424,7 +395,7 @@ inline uint32_t sys_micros(void);
 
         template <typename RTYPE, typename... PARAMS>
         int call(const char* method, RTYPE& ret, PARAMS... args) {
-            int tries    = max_retires_;
+            int tries    = BaseT::max_retires_;
             int last_err = ERROR_OK;
             size_t msgsize;
             while (tries-- > 0) {
@@ -461,22 +432,22 @@ inline uint32_t sys_micros(void);
             size_t writesize = ostream_.write(buffer_.data(), msgsize);
             if (writesize < msgsize)
                 return ERROR_JSON_SEND_ERROR;
-            logger_.print("CLIENT >> ") + logger_.print_escaped(buffer_.data(), writesize, "[]") + logger_.println();
+            logger_.print("CLIENT >> ") && logger_.print_escaped(buffer_.data(), writesize, "[]") && logger_.println();
             return ERROR_OK;
         }
 
         int read_reply(size_t& msgsize) {
             msgsize        = 0;
-            int wait_tries = max_retires_;
+            int wait_tries = BaseT::max_retires_;
             while (wait_tries-- > 0) {
                 if (istream_.available() > 0) {
                     msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-                    logger_.print("CLIENT << ") + logger_.print_escaped(buffer_.data(), msgsize, "[]") + logger_.println();
+                    logger_.print("CLIENT << ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
                     if (msgsize > 0)
                         return ERROR_OK;
                 }
                 if (reply_wait_ms_ > 0) {
-                    sys_sleep(reply_wait_ms_);
+                    sys_delay(reply_wait_ms_);
                 } else {
                     sys_yield();
                 }
@@ -487,14 +458,11 @@ inline uint32_t sys_micros(void);
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
+        using BaseT::max_retries_;
         using BaseT::logger_;
-        using BaseT::logger;
-        using BaseT::set_logger;
-        uint8_t buffer_data_[BUFSIZE];
-
-        int max_retires_;
         long reply_wait_ms_;
         size_t nextid_;
+        uint8_t buffer_data_[BUFSIZE];
     };
 }; // end namespace
 
