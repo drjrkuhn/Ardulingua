@@ -18,14 +18,14 @@
         #include <chrono>
         inline void sys_yield(void) { std::this_thread::yield();}
         inline void sys_delay(uint32_t msec) { std::this_thread::sleep_for(std::chrono::milliseconds(msec));}
-        inline void sys_delayMicroseconds(uint32_t usec) { std::this_thread::sleep_for(std::chrono::microseconds(msec));}
+        inline void sys_delayMicroseconds(uint32_t usec) { std::this_thread::sleep_for(std::chrono::milliseconds(usec/1000));}
         inline uint32_t sys_millis(void) { 
             auto now = std::chrono::system_clock::now().time_since_epoch();
-            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();        
+            return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(now).count());
         }
         inline uint32_t sys_micros(void) { 
             auto now = std::chrono::system_clock::now().time_since_epoch();
-            auto millis = std::chrono::duration_cast<std::chrono::microseconds>(now).count();        
+            return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(now).count());
         }
     #endif
 #endif

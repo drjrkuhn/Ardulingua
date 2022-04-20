@@ -13,6 +13,10 @@
     #include <thread>
     #include <unordered_map>
 
+#define JSONRPC_USE_SHORT_KEYS 1
+#define JSONRPC_USE_MSGPACK 1
+#define JSONRPC_DEBUG_CLIENTSERVER 1
+
     #if defined(JSONRPC_USE_SHORT_KEYS) && (JSONRPC_USE_SHORT_KEYS != 0)
         #define JSONRPC_USE_SHORT_KEYS 1
     #else
@@ -146,17 +150,28 @@ namespace rdl {
                 max_retries_ = max_retries;
             }
 
-        template <typename... PARAMS>
-        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, STR method, const int id, PARAMS... args) {
-            constexpr size_t NP = sizeof...(args);
-            // serialize the message
-            msgdoc[RK_METHOD] = method;
-            JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
-            bool add_res[NP]  = {params.add(args)...};
+        template<typename... PARAMS>
+        int toJsonArray(JsonArray& params, PARAMS... args) {
+            bool add_res[sizeof...(args)]    = {params.add(args)...};
             for (bool b : add_res) {
                 if (!b)
                     return ERROR_JSON_INVALID_PARAMS;
             }
+            return ERROR_OK;
+        }
+
+        int toJsonArray(JsonArray&) {
+            return ERROR_OK;
+        }
+
+        template <typename... PARAMS>
+        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, STR method, const int id, PARAMS... args) {
+            // serialize the message
+            msgdoc[RK_METHOD] = method;
+            JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
+            int err           = toJsonArray(params, args...);
+            if (err != ERROR_OK) 
+                return err;
             if (id >= 0)
                 msgdoc[RK_ID] = id; // request reply
             // slip-encode message
@@ -226,7 +241,7 @@ namespace rdl {
                 return ERROR_JSON_INVALID_REQUEST;
             args = msgdoc[RK_PARAMS];
             if (msgdoc.containsKey(RK_ID))
-                id = msgdoc[RK_ID].as<int>();
+                id = msgdoc[RK_ID];
             return ERROR_OK;
         }
 
@@ -244,7 +259,7 @@ namespace rdl {
             // check for reply id
             if (jvid.isNull())
                 return ERROR_JSON_INVALID_REPLY;
-            int reply_id = jvid.as<size_t>();
+            int reply_id = jvid.as<int>();
             if (reply_id != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check result in reply
@@ -268,7 +283,7 @@ namespace rdl {
             logger_.print("\tdeserialized") && logger_.println(msgdoc);
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
-            if (jvid.isNull() || jvid.as<size_t>() != msg_id)
+            if (jvid.isNull() || jvid.as<int>() != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check for error in reply
             return msgdoc[RK_ERROR] | ERROR_OK;
@@ -311,7 +326,7 @@ namespace rdl {
             }
             // read message
             size_t msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-            logger_.print("SERVER << ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
+            logger_.print("SERVER << ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -342,7 +357,7 @@ namespace rdl {
                 size_t writesize = ostream_.write(buffer_.data(), msgsize);
                 if (writesize < msgsize)
                     return ERROR_JSON_SEND_ERROR;
-                logger_.print("SERVER >> ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
+                logger_.print("SERVER >> ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
             }
             return ERROR_OK;
         }
@@ -373,7 +388,7 @@ namespace rdl {
 
         template <typename... PARAMS>
         int call(const char* method, PARAMS... args) {
-            int tries    = BaseT::max_retires_;
+            int tries    = max_retries_;
             int last_err = ERROR_OK;
             size_t msgsize;
             while (tries-- > 0) {
@@ -395,11 +410,11 @@ namespace rdl {
 
         template <typename RTYPE, typename... PARAMS>
         int call(const char* method, RTYPE& ret, PARAMS... args) {
-            int tries    = BaseT::max_retires_;
+            int tries    = max_retries_;
             int last_err = ERROR_OK;
             size_t msgsize;
             while (tries-- > 0) {
-                int msg_id = nextid_++;
+                int msg_id = static_cast<int>(nextid_++);
                 last_err   = notify_impl<PARAMS...>(method, msg_id, args...);
                 // get reply
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -432,17 +447,17 @@ namespace rdl {
             size_t writesize = ostream_.write(buffer_.data(), msgsize);
             if (writesize < msgsize)
                 return ERROR_JSON_SEND_ERROR;
-            logger_.print("CLIENT >> ") && logger_.print_escaped(buffer_.data(), writesize, "[]") && logger_.println();
+            logger_.print("CLIENT >> ") && logger_.print_escaped(buffer_.data(), writesize, "'") && logger_.println();
             return ERROR_OK;
         }
 
         int read_reply(size_t& msgsize) {
             msgsize        = 0;
-            int wait_tries = BaseT::max_retires_;
+            int wait_tries = max_retries_;
             while (wait_tries-- > 0) {
                 if (istream_.available() > 0) {
                     msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-                    logger_.print("CLIENT << ") && logger_.print_escaped(buffer_.data(), msgsize, "[]") && logger_.println();
+                    logger_.print("CLIENT << ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
                     if (msgsize > 0)
                         return ERROR_OK;
                 }

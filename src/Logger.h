@@ -5,12 +5,16 @@
 
     #include <ArduinoJson.h>
 
+class Printable;
+
 namespace rdl {
 
     template <class STR>
     class Print_null {
         public:
-        size_t write(const char* buffer, size_t size) { return 0; }
+        inline size_t write(const unsigned char*, size_t) { return 0; }
+        inline size_t write(const char*) { return 0; }
+        inline size_t write(uint8_t) { return 0; }
         inline size_t print(const STR&) { return 0; }
         inline size_t print(const char[]) { return 0; }
         inline size_t print(char) { return 0; }

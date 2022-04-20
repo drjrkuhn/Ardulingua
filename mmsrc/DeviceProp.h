@@ -12,7 +12,7 @@
     #include <ostream>
     #include <type_traits>
 
-namespace aling {
+namespace rdl {
 
     /*******************************************************************
     * PropInfo

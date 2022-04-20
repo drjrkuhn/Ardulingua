@@ -51,7 +51,7 @@ namespace rdl {
         }
 
         /** Called by the properties update method */
-        virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionT action) override {
+        virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
             int ret;
             // Use our helper functions above to do the work
             if (action == MM::BeforeGet) {
