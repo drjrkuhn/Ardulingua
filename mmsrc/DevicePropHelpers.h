@@ -12,7 +12,7 @@
     #include <string>
     #include <type_traits>
 
-namespace dprop {
+namespace rdl {
 
     /*******************************************************************
     * enable_if switches for MM::PropertyTypes
@@ -103,7 +103,7 @@ namespace dprop {
     /*******************************************************************
     * strings from mm values
     * 
-    * dprop::to_string normally calls std::to_string for output
+    * rdl::to_string normally calls std::to_string for output
     * but these do some type checking and coversion first
     *******************************************************************/
 
@@ -290,6 +290,6 @@ namespace dprop {
         return ret;
     }
 
-}; // namespace dprop
+}; // namespace rdl
 
 #endif // __DEVICEPROPHELPERS_H__

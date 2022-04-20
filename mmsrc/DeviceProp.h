@@ -12,7 +12,7 @@
     #include <ostream>
     #include <type_traits>
 
-namespace dprop {
+namespace aling {
 
     /*******************************************************************
     * PropInfo
@@ -140,16 +140,16 @@ namespace dprop {
 	* The PropT template parameter should contain the type of the member property.The type PropT should be able
 	* to auto-box and -unbox (auto-cast) from either MMInteger, MMFloat, or MMString.
 	* For example, if PropT=char, int, or long, then the property will be designated MM::Integer
-	* The DEVICE template parameter holds the device type
+	* The DeviceT template parameter holds the device type
 	*/
 
-    template <typename PropT, class DEVICE>
+    template <typename PropT, class DeviceT>
     class DeviceProp_Base {
      public:
-        typedef int (DEVICE::*DeviceNotifyChangeFunction)(const char* propName, const char* propValue);
+        typedef int (DeviceT::*NotifyChangeFnT)(const char* propName, const char* propValue);
 
         virtual ~DeviceProp_Base() {}
-        void setNotifyChange(DeviceNotifyChangeFunction& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
+        void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
 
         /** Sets the Device Property, which updates the getCachedValue */
         int set(const PropT& value) {
@@ -166,7 +166,7 @@ namespace dprop {
         }
         const char* name() const { return name_; }
         bool isReadOnly() const { return readOnly_; }
-        DEVICE* owner() const { return device_; }
+        DeviceT* owner() const { return device_; }
 
      protected:
         DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(nullptr), notifyChangeFunc_(nullptr) {}
@@ -177,7 +177,7 @@ namespace dprop {
         }
 
         /** Link the property to the device and initialize from the propInfo. */
-        int createAndLinkProp(DEVICE* device, const PropInfo<PropT>& propInfo, MM::ActionFunctor* action, bool readOnly, bool useInitialValue) {
+        int createAndLinkProp(DeviceT* device, const PropInfo<PropT>& propInfo, MM::ActionFunctor* action, bool readOnly, bool useInitialValue) {
             assert(device != nullptr);
             device_   = device;
             name_     = propInfo.name();
@@ -201,10 +201,10 @@ namespace dprop {
         * The initial value is given as a parameter.
         * This version requires a device member function of the form
 	    * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo. */
-        template <typename PropT, class DEVICE>
-        static inline int createMMPropOnDevice(DEVICE* device, const PropInfo<PropT>& propInfo, const PropT& initialValue,
-                                               int (DEVICE::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
-            MM::Action<DEVICE>* action = fn ? new MM::Action<DEVICE>(device, fn) : nullptr;
+        template <typename PropT, class DeviceT>
+        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo, const PropT& initialValue,
+                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
+            MM::Action<DeviceT>* action = fn ? new MM::Action<DeviceT>(device, fn) : nullptr;
             return createMMPropOnDevice(device, propInfo, initialValue, action, readOnly);
         };
 
@@ -213,15 +213,15 @@ namespace dprop {
 	    * Create MM device properties from PropInfo information. This version requires a device member function of the form
 	    * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
 	    */
-        template <typename PropT, class DEVICE>
-        static inline int createMMPropOnDevice(DEVICE* device, const PropInfo<PropT>& propInfo,
-                                               int (DEVICE::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
+        template <typename PropT, class DeviceT>
+        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo,
+                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
             return createMMPropertyOnDevice(device, propInfo, propInfo.initialValue(), fn, readOnly);
         }
 
         /** Creates a property that calls an update action on device from the propInfo. The initial val is gien as a parameter. */
-        template <typename PropT, class DEVICE>
-        static inline int createMMPropOnDevice(DEVICE* device, const PropInfo<PropT>& propInfo, PropT initialValue,
+        template <typename PropT, class DeviceT>
+        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo, PropT initialValue,
                                                MM::ActionFunctor* action, bool readOnly = false) {
             // double-check the read-only flag if the propInfo was created with the assertReadOnly() flag
             if (propInfo.isAssertReadOnly() && !readOnly) {
@@ -247,11 +247,11 @@ namespace dprop {
      protected:
         PropT cachedValue_;
         bool readOnly_;
-        DEVICE* device_;
+        DeviceT* device_;
         const char* name_;
-        DeviceNotifyChangeFunction notifyChangeFunc_;
+        NotifyChangeFnT notifyChangeFunc_;
     };
 
-}; // namespace dprop
+}; // namespace aling
 
 #endif // __DEVICE_PROP__

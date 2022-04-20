@@ -10,7 +10,7 @@
     #include <string>
     #include <type_traits>
 
-namespace dprop {
+namespace rdl {
 
     /** Common errors */
     #define ERR_UNKNOWN_POSITION 101
@@ -113,7 +113,7 @@ namespace dprop {
 
     #ifndef ASSERT_OK
         // Must be macro to get __FILE__ and __LINE__
-        #define ASSERT_OK(RET) dprop::assertResult((RET), __FILE__, __LINE__)
+        #define ASSERT_OK(RET) rdl::assertResult((RET), __FILE__, __LINE__)
     #endif
 
 }; // namespace
