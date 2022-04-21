@@ -37,7 +37,7 @@ namespace rdl {
         using FnStubT = void (*)(void* this_ptr);
 
         delegate_base() = delete;
-        ~delegate_base() {}
+
         bool operator==(const delegate_base& other) const {
             return object_ == other.object_ && fnstub_ == other.fnstub_;
         }
@@ -50,6 +50,7 @@ namespace rdl {
 
      protected:
         delegate_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
+
         void* object_   = nullptr;
         FnStubT fnstub_ = nullptr;
 
@@ -58,7 +59,6 @@ namespace rdl {
     class delegate : public delegate_base {
      public:
         delegate() = delete;
-        ~delegate() {}
 
         template <class RTYPE, typename... PPARAMS>
         class of;

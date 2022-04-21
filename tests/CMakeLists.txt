@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.8.0)
 project("test_${CORELIB_NAME}")
 
-find_package(catch2 2 CONFIG REQUIRED)
-
 ###
 ### Test SlipInPlace
 ###
@@ -35,6 +33,9 @@ add_executable(${DISPATCH_TEST_TARGET}  ${DISPATCH_TEST_SRCS})
 target_compile_features(${DISPATCH_TEST_TARGET} PUBLIC cxx_std_11)
 add_dependencies(${DISPATCH_TEST_TARGET}	${CORELIB_NAME})
 target_link_libraries(${DISPATCH_TEST_TARGET} PRIVATE Catch2::Catch2 ${CORELIB_NAME})
+
+catch_discover_tests(${SLIP_TEST_TARGET})
+catch_discover_tests(${DISPATCH_TEST_TARGET})
 
 
 # add_executable("devel1" main_devel1.cpp hrslip.h)

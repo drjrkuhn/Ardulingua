@@ -8,44 +8,43 @@
 namespace rdl {
 
     /*******************************************************************
-    * LocalProp_Base
-    *******************************************************************/
+     * LocalProp_Base
+     *******************************************************************/
 
     /**
-	* A base class for holding local property value.
- 	* Micromanager updates the property through the OnExecute member function.
-    *
-	* The PropT template parameter should contain the type of the member property.
-	* The type PropT should be able to auto-box and -unbox (auto-cast) from
-	* either MMInteger, MMFloat, or MMString.
-	* For example, if PropT=char, int, or long, then the property will be designated MM::Integer
-    *
-	* The DeviceT template parameter holds the device type
-	*/
+     * A base class for holding local property value.
+     * Micromanager updates the property through the OnExecute member function.
+     *
+     * The PropT template parameter should contain the type of the member property.
+     * The type PropT should be able to auto-box and -unbox (auto-cast) from
+     * either MMInteger, MMFloat, or MMString.
+     * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
+     *
+     * The DeviceT template parameter holds the device type
+     */
     template <typename PropT, typename DeviceT>
     class LocalProp_Base : public DeviceProp_Base<PropT, DeviceT> {
      protected:
-        using BaseT      = DeviceProp_Base<PropT, DeviceT>;
+        using BaseT   = DeviceProp_Base<PropT, DeviceT>;
         using ActionT = MM::Action<LocalProp_Base<PropT, DeviceT>>;
 
-        LocalProp_Base() {}
-        virtual ~LocalProp_Base() {}
+        LocalProp_Base() = default;
 
         /*	Link the property to the device and initialize from the propInfo.	*/
-        int createLocalPropH(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
+        int createLocalProp_impl(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
             MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<PropT, DeviceT>::OnExecute);
             readOnly_               = readOnly;
             return createAndLinkProp(device, propInfo, pAct, readOnly, usePropInfoInitialValue);
         }
 
         /** Get the value before updating the property. Derived classes may override. */
-        virtual int getLocalValueH(PropT& value) {
+        virtual int getValue_impl(PropT& value) {
             value = cachedValue_;
             return DEVICE_OK;
         }
 
         /** Set the value after updating the property. Derived classes may override. */
-        virtual int setLocalValueH(const PropT& value) {
+        virtual int setValue_impl(const PropT& value) {
             cachedValue_ = value;
             return DEVICE_OK;
         }
@@ -56,13 +55,13 @@ namespace rdl {
             // Use our helper functions above to do the work
             if (action == MM::BeforeGet) {
                 PropT temp;
-                if ((ret = getLocalValueH(temp)) != DEVICE_OK) { return ret; }
+                if ((ret = getValue_impl(temp)) != DEVICE_OK) { return ret; }
                 Assign(*pprop, temp);
             } else if (!readOnly_ && action == MM::AfterSet) {
                 PropT temp;
                 Assign(temp, *pprop);
-                if ((ret = setLocalValueH(temp)) != DEVICE_OK) { return ret; }
-                return notifyChangeH(temp);
+                if ((ret = setValue_impl(temp)) != DEVICE_OK) { return ret; }
+                return notifyChange_impl(temp);
             }
             return DEVICE_OK;
         }
@@ -73,17 +72,17 @@ namespace rdl {
     };
 
     /*******************************************************************
-    * LocalProp (Read/Write)
-    *******************************************************************/
+     * LocalProp (Read/Write)
+     *******************************************************************/
 
     /**
-	* A class for holding a local read/write property value for a device.
-    * The PropT template parameter should contain the type of the member property.
-    * The type PropT should be able to auto-box and -unbox (auto-cast) from
-    * either MMInteger, MMFloat, or MMString.
-    * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
-    * The DeviceT template parameter holds the device type
-	*/
+     * A class for holding a local read/write property value for a device.
+     * The PropT template parameter should contain the type of the member property.
+     * The type PropT should be able to auto-box and -unbox (auto-cast) from
+     * either MMInteger, MMFloat, or MMString.
+     * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
+     * The DeviceT template parameter holds the device type
+     */
     template <typename PropT, typename DeviceT>
     class LocalProp : public LocalProp_Base<PropT, DeviceT> {
      protected:
@@ -94,32 +93,36 @@ namespace rdl {
         LocalProp() : LocalProp(false, true) {}
 
         /** A local read/write property that will be initialized with the given initialValue.
-			This value overrides the PropInfo initialValue. */
+         * This value overrides the PropInfo initialValue. */
         LocalProp(const PropT& initialValue) : LocalProp(false, false) {}
 
-        virtual int createLocalProp(DeviceT* device, const PropInfo<PropT>& propInfo) {
-            return createLocalPropH(device, propInfo, readOnly_, initFromPropInfo_);
+        /** Create a local property from a given PropInfo builder */
+        int createLocalProp(DeviceT* device, const PropInfo<PropT>& propInfo) {
+            return createLocalProp_impl(device, propInfo, readOnly_, initFromPropInfo_);
         }
 
      protected:
-        LocalProp(bool readOnly, bool initFromPropInfo) : initFromPropInfo_(initFromPropInfo) { readOnly_ = readOnly; }
+        LocalProp(bool readOnly, bool initFromPropInfo)
+            : initFromPropInfo_(initFromPropInfo) {
+            readOnly_ = readOnly;
+        }
 
         using BaseT::readOnly_;
         bool initFromPropInfo_;
     };
 
     /*******************************************************************
-    * LocalReadOnlyProp (Read-only)
-    *******************************************************************/
+     * LocalReadOnlyProp (Read-only)
+     *******************************************************************/
 
     /**
-    * A class for holding a local read-only property value for a device.
-	* The PropT template parameter should contain the type of the member property.
-	* The type PropT should be able to auto-box and -unbox (auto-cast) from
-	* either MMInteger, MMFloat, or MMString.
-	* For example, if PropT=char, int, or long, then the property will be designated MM::Integer
-    * The DeviceT template parameter holds the device type
-	*/
+     * A class for holding a local read-only property value for a device.
+     * The PropT template parameter should contain the type of the member property.
+     * The type PropT should be able to auto-box and -unbox (auto-cast) from
+     * either MMInteger, MMFloat, or MMString.
+     * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
+     * The DeviceT template parameter holds the device type
+     */
     template <typename PropT, typename DeviceT>
     class LocalReadOnlyProp : public LocalProp<PropT, DeviceT> {
      protected:
@@ -130,18 +133,20 @@ namespace rdl {
         LocalReadOnlyProp() : LocalProp(true, true) {}
 
         /** A local read-only property that will be initialized with the given initialValue.
-		This value overrides the PropInfo initialValue. */
+        This value overrides the PropInfo initialValue. */
         LocalReadOnlyProp(const PropT& initialValue) : LocalProp(true, false) {
             setCachedValue(initialValue);
         }
 
         /** Set the cached value of a read-only property. If the property was not yet created through
-		createLocalProp, then this value overrides the PropInfo initialValue. */
+        createLocalProp, then this value overrides the PropInfo initialValue. */
         int setCached(const PropT& value) {
             initFromPropInfo_ = false;
             int ret;
-            if ((ret = setLocalValueH(value)) != DEVICE_OK) { return ret; }
-            return notifyChangeH(value);
+            if ((ret = setValue_impl(value)) != DEVICE_OK) {
+                return ret;
+            }
+            return notifyChange_impl(value);
         }
 
      protected:

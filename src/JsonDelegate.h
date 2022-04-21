@@ -67,7 +67,6 @@ namespace rdl {
      public:
         using FnStubT   = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
         json_delegate() = delete;
-        ~json_delegate() {}
 
         template <typename RTYPE, typename... PARAMS>
         class of;

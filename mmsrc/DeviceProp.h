@@ -15,21 +15,29 @@
 namespace rdl {
 
     /*******************************************************************
-    * PropInfo
-    *******************************************************************/
+     * PropInfo builder
+     *******************************************************************/
 
     template <typename PropT>
     class PropInfo {
      public:
         /*******************************************************************
-        * Setters
-        *******************************************************************/
+         * Setters
+         *******************************************************************/
 
         /** Factory method to creating a PropInfo. This templated version is neccessary to catch potential problems such as
-		 * @code{.cpp}PropInfo<std::string> build("foo",0);@endcode which tries to inialize a std::string from a null pointer. */
+         * @code{.cpp}PropInfo<std::string> build("foo",0);@endcode which tries to inialize a std::string from a null pointer. */
         template <typename U,
                   typename std::enable_if<std::is_convertible<U, PropT>::value, bool>::type = true>
-        static PropInfo build(const char* name, const U& initialValue) { return PropInfo(name, static_cast<const PropT>(initialValue)); }
+        static PropInfo build(const char* name, const U& initialValue) {
+            return PropInfo(name, static_cast<const PropT>(initialValue));
+        }
+
+        /** Add brief name (only for remote properties). */
+        PropInfo& withBriefName(const char* briefName) {
+            briefName_ = briefName;
+            return *this;
+        }
 
         /** Add min and max value limits to the PropInfo. Sets hasLimits to true. */
         PropInfo& withLimits(double minval, double maxval) {
@@ -46,7 +54,7 @@ namespace rdl {
         }
 
         /** Add an array of allowed values to the PropInfo using an initializer list.
-		 * For example: @code{.cpp} PropInfo<int>build("foo",1).withAllowedValues({1, 2, 3, 4});@endcode */
+         * For example: @code{.cpp} PropInfo<int>build("foo",1).withAllowedValues({1, 2, 3, 4});@endcode */
         PropInfo& withAllowedValues(const std::initializer_list<PropT>& vals) {
             allowedValues_.insert(allowedValues_.end(), vals.begin(), vals.end());
             return *this;
@@ -64,6 +72,12 @@ namespace rdl {
             return *this;
         }
 
+        /** Specify this is a sequencable property (only for remote properties). */
+        PropInfo& withIsSequencable() {
+            isSequencable_ = true;
+            return *this;
+        }
+
         /** Check that this property is read-only upon creation. It is mainly used as a double-check during createProperty. */
         PropInfo& assertReadOnly() {
             assertIsReadOnly_ = true;
@@ -71,10 +85,13 @@ namespace rdl {
         }
 
         /*******************************************************************
-        * Getters
-        *******************************************************************/
+         * Getters
+         *******************************************************************/
         /** Get the property name. */
         const char* name() const { return name_; }
+
+        /** Get the property brief name (for remote). */
+        const char* briefName() const { return briefName_; }
 
         /** Get the initial property value. */
         PropT initialValue() const { return initialValue_; }
@@ -97,16 +114,21 @@ namespace rdl {
         /** Was this specified as a pre-init property? */
         bool isPreInit() const { return isPreInit_; }
 
+        /** Was this specified as a sequencable property? */
+        bool isSequencable() const { return isSequencable_; }
+
         /** Was this specified as a read-only property? */
-        bool isAssertReadOnly() const { return assertIsReadOnly_; }
+        bool isReadOnly() const { return assertIsReadOnly_; }
 
         friend std::ostream& operator<<(std::ostream& os, const PropInfo& p) {
             os << "PropInfo.name=" << p.name_;
+            os << " .briefName=" << p.briefName_;
             os << " .initialValue=" << p.initialValue;
             os << " .hasLimits=" << std::boolalpha << p.hasLimits;
             os << " .minValue=" << p.minValue_;
             os << " .maxValue=" << p.maxValue_;
             os << " .isPreInit=" << std::boolalpha << p.isPreInit_;
+            os << " .isSequencable=" << std::boolalpha << p.isSequencable_;
             os << " .assertIsReadOnly=" << std::boolalpha << p.assertIsReadOnly_;
             os << " .allowedValues={";
             std::copy(p.allowedValues.begin(), p.alowedValue.end(), std::ostream_iterator<PropT>(os, " "));
@@ -118,76 +140,108 @@ namespace rdl {
         PropInfo(const char* name, const PropT& initialValue) : name_(name), initialValue_(initialValue) {}
 
         const char* name_;
+        const char* briefName_ = nullptr;
         PropT initialValue_;
         bool hasLimits_        = false;
         double minValue_       = 0;
         double maxValue_       = 0;
+        bool isSequencable_    = false;
         bool isPreInit_        = false;
         bool assertIsReadOnly_ = false;
         std::vector<PropT> allowedValues_;
     };
 
     /*******************************************************************
-    * DeviceProp_Base
-    *******************************************************************/
+     * DeviceProp_Base
+     *******************************************************************/
 
     /**
-	* A class to hold and update a micromanager property.
-    *
-	* Devices should not create a DeviceProp_Base directly, but should create one of its derived members and then
-	* call createDeviceProp. Micromanager updates the property through the OnExecute member function.
-    *
-	* The PropT template parameter should contain the type of the member property.The type PropT should be able
-	* to auto-box and -unbox (auto-cast) from either MMInteger, MMFloat, or MMString.
-	* For example, if PropT=char, int, or long, then the property will be designated MM::Integer
-	* The DeviceT template parameter holds the device type
-	*/
+     * A class to hold and update a micromanager property.
+     *
+     * Devices should not create a DeviceProp_Base directly, but should create one of its derived members and then
+     * call createDeviceProp. Micromanager updates the property through the OnExecute member function.
+     *
+     * The PropT template parameter should contain the type of the member property.The type PropT should be able
+     * to auto-box and -unbox (auto-cast) from either MMInteger, MMFloat, or MMString.
+     * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
+     * The DeviceT template parameter holds the device type
+     */
 
     template <typename PropT, class DeviceT>
     class DeviceProp_Base {
      public:
         typedef int (DeviceT::*NotifyChangeFnT)(const char* propName, const char* propValue);
 
-        virtual ~DeviceProp_Base() {}
-        void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
+        /** Add a callback method to the property */
+        void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) {
+            notifyChangeFunc_ = notifyChangeFunc;
+        }
 
         /** Sets the Device Property, which updates the getCachedValue */
         int set(const PropT& value) {
             int ret;
             if ((ret = Assign(device_, name_, value)) != DEVICE_OK) return ret;
             cachedValue_ = value;
-            return notifyChangeH(value);
+            return notifyChange_impl(value);
         }
 
+        /** Get the device property directly */
         int get(PropT& val) const { return Assign(val, device_, name_); };
+
+        /** Get the cached property value (last call to set()) */
         int getCached(PropT& value) const {
             value = cachedValue_;
             return DEVICE_OK;
         }
+        /** Get the property name */
         const char* name() const { return name_; }
+
+        /** Get the read-only flag */
         bool isReadOnly() const { return readOnly_; }
+
+        /**
+         * Get the Device that owns the property (hub or sub-device).
+         * The owner device does the actual setting and getting of property values!
+         */
         DeviceT* owner() const { return device_; }
 
      protected:
+        /** Protected constructor - only called by derived classes */
         DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(nullptr), notifyChangeFunc_(nullptr) {}
 
-        virtual int notifyChangeH(const PropT& val) {
-            if (notifyChangeFunc_) { return (device_->*notifyChangeFunc_)(name_, ToString(val).c_str()); }
+        /** Call the registered callback if any */
+        virtual int notifyChange_impl(const PropT& val) {
+            if (notifyChangeFunc_) {
+                return (device_->*notifyChangeFunc_)(name_, ToString(val).c_str());
+            }
             return DEVICE_OK;
         }
 
         /** Link the property to the device and initialize from the propInfo. */
-        int createAndLinkProp(DeviceT* device, const PropInfo<PropT>& propInfo, MM::ActionFunctor* action, bool readOnly, bool useInitialValue) {
+        int createAndLinkProp(DeviceT* device,
+                              const PropInfo<PropT>& propInfo,
+                              MM::ActionFunctor* action,
+                              bool readOnly,
+                              bool useInitialValue) {
             assert(device != nullptr);
             device_   = device;
             name_     = propInfo.name();
             readOnly_ = readOnly;
-            if (useInitialValue) { cachedValue_ = propInfo.initialValue(); }
+            if (useInitialValue) {
+                cachedValue_ = propInfo.initialValue();
+            }
+            // call the device's CreateProperty() method to create the property
             return createMMPropOnDevice(device_, propInfo, cachedValue_, action, readOnly);
         }
 
         /** Called by the properties update method. Subclasses must override. */
         virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
+
+        /** Get the value before updating the property. Derived classes may override. */
+        virtual int getValue_impl(PropT& value) = 0;
+
+        /** Set the value after updating the property. Derived classes may override. */
+        virtual int setValue_impl(const PropT& value) = 0;
 
      private:
         /*******************************************************************
@@ -197,43 +251,66 @@ namespace rdl {
         * - the other creates an MM Action from a device method
         ******************************************************************* /
 
-        /** Creates a property that calls an update function on device from the propInfo. 
-        * The initial value is given as a parameter.
-        * This version requires a device member function of the form
-	    * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo. */
+        /** Creates a property that calls an update function on device from the propInfo.
+         *
+         * The initial value is given as a parameter.
+         * This version requires a device member function of the form
+         * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
+         */
         template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo, const PropT& initialValue,
-                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
+        static inline int createMMPropOnDevice(DeviceT* device,
+                                               const PropInfo<PropT>& propInfo,
+                                               const PropT& initialValue,
+                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
+                                               bool readOnly = false) {
             MM::Action<DeviceT>* action = fn ? new MM::Action<DeviceT>(device, fn) : nullptr;
             return createMMPropOnDevice(device, propInfo, initialValue, action, readOnly);
         };
 
         /** Creates a property that calls an update function on device from the propInfo.
-        * 
-	    * Create MM device properties from PropInfo information. This version requires a device member function of the form
-	    * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
-	    */
+         *
+         * Create MM device properties from PropInfo information. This version requires a device member function of the form
+         * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
+         */
         template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo,
-                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct), bool readOnly = false) {
-            return createMMPropertyOnDevice(device, propInfo, propInfo.initialValue(), fn, readOnly);
+        static inline int createMMPropOnDevice(DeviceT* device,
+                                               const PropInfo<PropT>& propInfo,
+                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
+                                               bool readOnly = false) {
+            return createMMPropOnDevice(device, propInfo, propInfo.initialValue(), fn, readOnly);
         }
 
-        /** Creates a property that calls an update action on device from the propInfo. The initial val is gien as a parameter. */
+        /** Creates a property that calls an update action on device from the propInfo.
+         *
+         * ### THIS IS THE MAIN PROPERTY CREATION ENTRY POINT
+         *
+         * The initial val is given as a parameter.
+         */
         template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device, const PropInfo<PropT>& propInfo, PropT initialValue,
-                                               MM::ActionFunctor* action, bool readOnly = false) {
+        static inline int createMMPropOnDevice(DeviceT* device,
+                                               const PropInfo<PropT>& propInfo,
+                                               PropT initialValue,
+                                               MM::ActionFunctor* action,
+                                               bool readOnly = false) {
             // double-check the read-only flag if the propInfo was created with the assertReadOnly() flag
-            if (propInfo.isAssertReadOnly() && !readOnly) {
-                assert(propInfo.isAssertReadOnly() == readOnly);
+            if (propInfo.isReadOnly() && !readOnly) {
+                assert(propInfo.isReadOnly() == readOnly);
                 // Create an "ERROR" property if assert was turned off during compile.
                 device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
                 return DEVICE_INVALID_PROPERTY;
             }
-            int ret = device->CreateProperty(propInfo.name(), ToString(initialValue).c_str(),
-                                             MMPropertyType_of<PropT>(initialValue), readOnly, action, propInfo.isPreInit());
-            if (ret != DEVICE_OK) { return ret; }
-            if (propInfo.hasLimits()) { ret = device->SetPropertyLimits(propInfo.name(), propInfo.minValue(), propInfo.maxValue()); }
+            int ret = device->CreateProperty(propInfo.name(),
+                                             ToString(initialValue).c_str(),
+                                             MMPropertyType_of<PropT>(initialValue),
+                                             readOnly,
+                                             action,
+                                             propInfo.isPreInit());
+            if (ret != DEVICE_OK) {
+                return ret;
+            }
+            if (propInfo.hasLimits()) {
+                ret = device->SetPropertyLimits(propInfo.name(), propInfo.minValue(), propInfo.maxValue());
+            }
             if (propInfo.hasAllowedValues()) {
                 std::vector<std::string> allowedStrings;
                 for (PropT aval : propInfo.allowedValues()) {

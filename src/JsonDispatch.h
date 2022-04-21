@@ -157,6 +157,7 @@ namespace rdl {
             : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
             max_retries_ = max_retries;
         }
+        
 
         template <typename... PARAMS>
         int toJsonArray(JsonArray& params, PARAMS... args) {
