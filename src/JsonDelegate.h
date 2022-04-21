@@ -15,11 +15,11 @@
 #pragma once
 
 #ifndef __JSONDELEGATE_H__
-#define __JSONDELEGATE_H__
+    #define __JSONDELEGATE_H__
 
-#include "Polyfills/std_utility.h"
-#include "Delegate.h"
-#include <ArduinoJson.h>
+    #include "Delegate.h"
+    #include "Polyfills/std_utility.h"
+    #include <ArduinoJson.h>
 
 namespace rdl {
 
@@ -46,13 +46,13 @@ namespace rdl {
     constexpr int ERROR_JSON_DESER_TOO_DEEP         = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::TooDeep;
 
     namespace svc {
-            // C++11 compile-time helpers to determine which _impl to call
-            // in c++14 or later, one could use constexpr if(std::is_void<RTYPE>::type) to switch
-            // ALSO see https://stackoverflow.com/questions/43587405/constexpr-if-alternative
-            using ret_is_void  = std::true_type;
-            using ret_not_void = std::false_type;
-            template <typename R>
-            using is_void_tag = std::integral_constant<bool, std::is_void<R>::value>;
+        // C++11 compile-time helpers to determine which _impl to call
+        // in c++14 or later, one could use constexpr if(std::is_void<RTYPE>::type) to switch
+        // ALSO see https://stackoverflow.com/questions/43587405/constexpr-if-alternative
+        using ret_is_void  = std::true_type;
+        using ret_not_void = std::false_type;
+        template <typename R>
+        using is_void_tag = std::integral_constant<bool, std::is_void<R>::value>;
     };
 
     /**
@@ -228,7 +228,7 @@ namespace rdl {
             template <RTYPE (*TMethod)(PARAMS...)>
             static int function_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
                 constexpr size_t nparams = sizeof...(PARAMS);
-                size_t nargs = args.size();
+                size_t nargs             = args.size();
                 if (nargs < nparams) return ERROR_JSON_INVALID_PARAMS;
                 return function_jsonstub_impl<TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>{}, svc::is_void_tag<RTYPE>{});
             }

@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef __RDL_COMMON_H__
-#define __RDL_COMMON_H__
+    #define __RDL_COMMON_H__
 
     #if !defined(__ALWAYS_INLINE__)
         #if defined(__GNUC__) && __GNUC__ > 3

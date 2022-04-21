@@ -1,19 +1,19 @@
 #pragma once
 
 #ifndef __POLYFILLS_STD_UTILITY_H__
-#define __POLYFILLS_STD_UTILITY_H__
+    #define __POLYFILLS_STD_UTILITY_H__
 
 // TODO: Substitute Andy Brown's STL lib for arduino
 // https://andybrown.me.uk/2011/01/15/the-standard-template-library-stl-for-avr-with-c-streams/
 
 // from https://gist.github.com/ntessore/dc17769676fb3c6daa1f
 
-#ifdef __has_include
-    #if __has_include(<utility>) && (__cplusplus >= 201402L || _MSVC_LANG >= 201402L) // for integer_sequence
-        #include <utility>
-    #else
+    #ifdef __has_include
+        #if __has_include(<utility>) && (__cplusplus >= 201402L || _MSVC_LANG >= 201402L) // for integer_sequence
+            #include <utility>
+        #else
 
-#include <cstddef> // for size_t
+            #include <cstddef> // for size_t
 
 // C++11 version of integer_sequence
 namespace std {
@@ -40,7 +40,7 @@ namespace std {
     template <typename... T>
     using index_sequence_for = make_index_sequence<sizeof...(T)>;
 }
-    #endif // #if __has_include(<utility>)
-#endif     // #ifdef __has_include
+        #endif                 // #if __has_include(<utility>)
+    #endif                     // #ifdef __has_include
 
 #endif // __POLYFILLS_STD_UTILITY_H__

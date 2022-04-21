@@ -3,19 +3,19 @@
 #ifndef __JSONDISPATCH_H__
     #define __JSONDISPATCH_H__
 
-    #include "Polyfills/std_utility.h"
-    #include "Polyfills/sys_timing.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
+    #include "Polyfills/std_utility.h"
+    #include "Polyfills/sys_timing.h"
     #include <ArduinoJson.h>
     #include <SlipInPlace.h>
     #include <SlipUtils.h>
     #include <thread>
     #include <unordered_map>
 
-#define JSONRPC_USE_SHORT_KEYS 1
-#define JSONRPC_USE_MSGPACK 1
-#define JSONRPC_DEBUG_CLIENTSERVER 1
+    // #define JSONRPC_USE_SHORT_KEYS 1
+    // #define JSONRPC_USE_MSGPACK 1
+    #define JSONRPC_DEBUG_CLIENTSERVER 1
 
     #if defined(JSONRPC_USE_SHORT_KEYS) && (JSONRPC_USE_SHORT_KEYS != 0)
         #define JSONRPC_USE_SHORT_KEYS 1
@@ -85,7 +85,7 @@ namespace rdl {
     constexpr const char* RK_ID     = "i";
     constexpr const char* RK_RESULT = "r";
     constexpr const char* RK_ERROR  = "e";
-    #else 
+    #else
     constexpr const char* RK_METHOD = "method";
     constexpr const char* RK_PARAMS = "params";
     constexpr const char* RK_ID     = "id";
@@ -115,6 +115,14 @@ namespace rdl {
     }
     #endif
 
+    #if JSONRPC_DEBUG_CLIENTSERVER
+        #define DCS(block) \
+            { block; }
+    #else
+        #define DCS(block) \
+            { ; }
+    #endif
+
     // comparison operator for const char* maps
     // struct cmp_str {
     //     bool operator()(char const* a, char const* b) const { return std::strcmp(a, b) < 0; }
@@ -142,17 +150,17 @@ namespace rdl {
     /************************************************************************
      * PROTOCOL BASE
      ***********************************************************************/
-    template <class S, class STR, class LOG=logger_base<Print_null<STR>, STR>>
+    template <class S, class STR, class LOG = logger_base<Print_null<STR>, STR>>
     class protocol_base {
      public:
         protocol_base(S& istream, S& ostream, uint8_t* buffer_data, size_t buffer_size, int max_retries = 3)
             : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
-                max_retries_ = max_retries;
-            }
+            max_retries_ = max_retries;
+        }
 
-        template<typename... PARAMS>
+        template <typename... PARAMS>
         int toJsonArray(JsonArray& params, PARAMS... args) {
-            bool add_res[sizeof...(args)]    = {params.add(args)...};
+            bool add_res[sizeof...(args)] = {params.add(args)...};
             for (bool b : add_res) {
                 if (!b)
                     return ERROR_JSON_INVALID_PARAMS;
@@ -170,7 +178,7 @@ namespace rdl {
             msgdoc[RK_METHOD] = method;
             JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
             int err           = toJsonArray(params, args...);
-            if (err != ERROR_OK) 
+            if (err != ERROR_OK)
                 return err;
             if (id >= 0)
                 msgdoc[RK_ID] = id; // request reply
@@ -178,7 +186,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_ENCODING_ERROR;
-            logger_.print("\tserialized ") && logger_.println(msgdoc);
+            DCS(logger_.print("\tserialized "); logger_.println(msgdoc));
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -198,7 +206,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            logger_.print("\tserialized") && logger_.println(msgdoc);
+            DCS(logger_.print("\tserialized"); logger_.println(msgdoc));
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -216,7 +224,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            logger_.print("\tserialized") && logger_.println(msgdoc);
+            DCS(logger_.print("\tserialized"); logger_.println(msgdoc));
             msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -232,7 +240,7 @@ namespace rdl {
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") && logger_.println(msgdoc);
+            DCS(logger_.print("\tdeserialized"); logger_.println(msgdoc));
             id = 37;
             if (!msgdoc.containsKey(RK_METHOD))
                 return ERROR_JSON_INVALID_REQUEST;
@@ -254,7 +262,7 @@ namespace rdl {
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") && logger_.println(msgdoc);
+            DCS(logger_.print("\tdeserialized"); logger_.println(msgdoc));
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
             if (jvid.isNull())
@@ -280,7 +288,7 @@ namespace rdl {
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            logger_.print("\tdeserialized") && logger_.println(msgdoc);
+            DCS(logger_.print("\tdeserialized"); logger_.println(msgdoc));
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
             if (jvid.isNull() || jvid.as<int>() != msg_id)
@@ -326,7 +334,7 @@ namespace rdl {
             }
             // read message
             size_t msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-            logger_.print("SERVER << ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
+            DCS(logger_.print("SERVER << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -357,7 +365,7 @@ namespace rdl {
                 size_t writesize = ostream_.write(buffer_.data(), msgsize);
                 if (writesize < msgsize)
                     return ERROR_JSON_SEND_ERROR;
-                logger_.print("SERVER >> ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
+                DCS(logger_.print("SERVER >> "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
             }
             return ERROR_OK;
         }
@@ -447,7 +455,7 @@ namespace rdl {
             size_t writesize = ostream_.write(buffer_.data(), msgsize);
             if (writesize < msgsize)
                 return ERROR_JSON_SEND_ERROR;
-            logger_.print("CLIENT >> ") && logger_.print_escaped(buffer_.data(), writesize, "'") && logger_.println();
+            DCS(logger_.print("CLIENT >> "); logger_.print_escaped(buffer_.data(), writesize, "'"); logger_.println());
             return ERROR_OK;
         }
 
@@ -457,7 +465,7 @@ namespace rdl {
             while (wait_tries-- > 0) {
                 if (istream_.available() > 0) {
                     msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
-                    logger_.print("CLIENT << ") && logger_.print_escaped(buffer_.data(), msgsize, "'") && logger_.println();
+                    DCS(logger_.print("CLIENT << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
                     if (msgsize > 0)
                         return ERROR_OK;
                 }

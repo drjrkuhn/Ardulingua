@@ -15,20 +15,19 @@
 #pragma once
 
 #ifndef __DELEGATE_H__
-#define __DELEGATE_H__
+    #define __DELEGATE_H__
 
-#include "Polyfills/std_utility.h"
+    #include "Polyfills/std_utility.h"
 
 namespace rdl {
 
     /** Tag for template argument */
-    template<typename R>
-    struct Ret { using type=  R; };
+    template <typename R>
+    struct Ret { using type = R; };
 
     /** pass-through marker tag for template argument */
-    template<class R>
+    template <class R>
     using RetT = typename Ret<R>::type;
-
 
     /************************************************************************
      * Generic delegate stub with of type erased.
@@ -63,7 +62,6 @@ namespace rdl {
 
         template <class RTYPE, typename... PPARAMS>
         class of;
-
 
         template <typename RTYPE, typename... PARAMS>
         of<RTYPE, PARAMS...> as() {

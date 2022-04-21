@@ -11,7 +11,7 @@ namespace rdl {
 
     template <class STR>
     class Print_null {
-        public:
+     public:
         inline size_t write(const unsigned char*, size_t) { return 0; }
         inline size_t write(const char*) { return 0; }
         inline size_t write(uint8_t) { return 0; }
@@ -95,7 +95,7 @@ namespace rdl {
             if (!printer_) return 0;
             size_t written = 0;
             size_t br_len  = brackets ? strlen(brackets) : 0;
-            if (br_len > 0) 
+            if (br_len > 0)
                 written += printer_->print(brackets[0]);
             static char c_escapes[] = {
                 '\0', '0', '\'', '\'', '\"', '"', '\?', '?', '\\', '\\', '\a', 'a',
