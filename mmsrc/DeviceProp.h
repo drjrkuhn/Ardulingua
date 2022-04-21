@@ -178,26 +178,31 @@ namespace rdl {
         }
 
         /** Sets the Device Property, which updates the getCachedValue */
-        int set(const PropT& value) {
+        virtual int set(const PropT& value) {
             int ret;
-            if ((ret = Assign(device_, name_, value)) != DEVICE_OK) return ret;
+            if ((ret = Assign(device_, name_.c_str(), value)) != DEVICE_OK) return ret;
             cachedValue_ = value;
-            return notifyChange_impl(value);
+            return notifyChange(value);
         }
 
         /** Get the device property directly */
-        int get(PropT& val) const { return Assign(val, device_, name_); };
+        virtual int get(PropT& val) const { return Assign(val, device_, name_.c_str()); };
 
         /** Get the cached property value (last call to set()) */
-        int getCached(PropT& value) const {
+        virtual int getCached(PropT& value) const {
             value = cachedValue_;
             return DEVICE_OK;
         }
         /** Get the property name */
-        const char* name() const { return name_; }
+        const std::string name() const { return name_; }
+
+        /** Get the property brief name (for remote) */
+        const std::string briefName() const { return briefName_; }
 
         /** Get the read-only flag */
         bool isReadOnly() const { return readOnly_; }
+
+        bool isSequencable() const { return sequencable_; }
 
         /**
          * Get the Device that owns the property (hub or sub-device).
@@ -207,12 +212,12 @@ namespace rdl {
 
      protected:
         /** Protected constructor - only called by derived classes */
-        DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(nullptr), notifyChangeFunc_(nullptr) {}
+        DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(""), notifyChangeFunc_(nullptr) {}
 
         /** Call the registered callback if any */
-        virtual int notifyChange_impl(const PropT& val) {
+        virtual int notifyChange(const PropT& val) {
             if (notifyChangeFunc_) {
-                return (device_->*notifyChangeFunc_)(name_, ToString(val).c_str());
+                return (device_->*notifyChangeFunc_)(name_.c_str(), ToString(val).c_str());
             }
             return DEVICE_OK;
         }
@@ -224,9 +229,11 @@ namespace rdl {
                               bool readOnly,
                               bool useInitialValue) {
             assert(device != nullptr);
-            device_   = device;
-            name_     = propInfo.name();
-            readOnly_ = readOnly;
+            device_    = device;
+            name_      = propInfo.name();
+            briefName_ = propInfo.briefName() ? propInfo.briefName() : std::string("");
+            readOnly_  = readOnly;
+            sequencable_ = propInfo.isReadOnly();
             if (useInitialValue) {
                 cachedValue_ = propInfo.initialValue();
             }
@@ -236,12 +243,6 @@ namespace rdl {
 
         /** Called by the properties update method. Subclasses must override. */
         virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
-
-        /** Get the value before updating the property. Derived classes may override. */
-        virtual int getValue_impl(PropT& value) = 0;
-
-        /** Set the value after updating the property. Derived classes may override. */
-        virtual int setValue_impl(const PropT& value) = 0;
 
      private:
         /*******************************************************************
@@ -324,8 +325,10 @@ namespace rdl {
      protected:
         PropT cachedValue_;
         bool readOnly_;
+        bool sequencable_;
         DeviceT* device_;
-        const char* name_;
+        std::string name_;
+        std::string briefName_;
         NotifyChangeFnT notifyChangeFunc_;
     };
 

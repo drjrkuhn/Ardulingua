@@ -9,7 +9,6 @@
     #include "Polyfills/sys_timing.h"
     #include <ArduinoJson.h>
     #include <SlipInPlace.h>
-    #include <SlipUtils.h>
     #include <thread>
     #include <unordered_map>
 
@@ -188,7 +187,7 @@ namespace rdl {
             if (msgsize == 0)
                 return ERROR_JSON_ENCODING_ERROR;
             DCS(logger_.print("\tserialized "); logger_.println(msgdoc));
-            msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -208,7 +207,7 @@ namespace rdl {
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
             DCS(logger_.print("\tserialized"); logger_.println(msgdoc));
-            msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -226,7 +225,7 @@ namespace rdl {
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
             DCS(logger_.print("\tserialized"); logger_.println(msgdoc));
-            msgsize = slip::null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -234,7 +233,7 @@ namespace rdl {
 
         int deserialize_call(JsonDocument& msgdoc, size_t msgsize, STR& method, int& id, JsonArray& args) {
             // slip decode the message
-            msgsize = slip::null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             // deserialize the message
@@ -257,7 +256,7 @@ namespace rdl {
         template <typename RTYPE>
         int deserialize_reply(JsonDocument& msgdoc, size_t msgsize, int msg_id, RTYPE& ret) {
             // decode message
-            msgsize = slip::null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
@@ -283,7 +282,7 @@ namespace rdl {
 
         int deserialize_reply(JsonDocument& msgdoc, size_t msgsize, int msg_id) {
             // decode message
-            msgsize = slip::null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
@@ -334,7 +333,7 @@ namespace rdl {
                 return ERROR_OK;
             }
             // read message
-            size_t msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
+            size_t msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
             DCS(logger_.print("SERVER << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
@@ -465,7 +464,7 @@ namespace rdl {
             int wait_tries = max_retries_;
             while (wait_tries-- > 0) {
                 if (istream_.available() > 0) {
-                    msgsize = istream_.readBytesUntil(slip::stdcodes::SLIP_END, buffer_.data(), buffer_.size());
+                    msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
                     DCS(logger_.print("CLIENT << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
                     if (msgsize > 0)
                         return ERROR_OK;

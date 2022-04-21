@@ -5,6 +5,7 @@
 
     #include <cstddef> // for size_t
     #include <mutex>
+    #include <deque>
 
 namespace rdl {
 
@@ -38,7 +39,6 @@ namespace rdl {
         virtual size_t write(const uint8_t* str, size_t n) override {
             std::lock_guard<std::mutex> _(guard_);
 
-            const char* src = reinterpret_cast<const char*>(str);
             int err = hub_->WriteToComPort(hub_->port().c_str(), str, static_cast<unsigned int>(n));
             return (err == DEVICE_OK) ? n : 0;
         }

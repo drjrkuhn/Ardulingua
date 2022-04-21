@@ -24,6 +24,19 @@ namespace rdl {
      */
     template <typename PropT, typename DeviceT>
     class LocalProp_Base : public DeviceProp_Base<PropT, DeviceT> {
+     public:
+        /** Get the value before updating the property. Derived classes may override. */
+        virtual int get(PropT& value) {
+            value = cachedValue_;
+            return DEVICE_OK;
+        }
+
+        /** Set the value after updating the property. Derived classes may override. */
+        virtual int set(const PropT& value) {
+            cachedValue_ = value;
+            return DEVICE_OK;
+        }
+
      protected:
         using BaseT   = DeviceProp_Base<PropT, DeviceT>;
         using ActionT = MM::Action<LocalProp_Base<PropT, DeviceT>>;
@@ -31,22 +44,10 @@ namespace rdl {
         LocalProp_Base() = default;
 
         /*	Link the property to the device and initialize from the propInfo.	*/
-        int createLocalProp_impl(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
+        virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
             MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<PropT, DeviceT>::OnExecute);
             readOnly_               = readOnly;
             return createAndLinkProp(device, propInfo, pAct, readOnly, usePropInfoInitialValue);
-        }
-
-        /** Get the value before updating the property. Derived classes may override. */
-        virtual int getValue_impl(PropT& value) {
-            value = cachedValue_;
-            return DEVICE_OK;
-        }
-
-        /** Set the value after updating the property. Derived classes may override. */
-        virtual int setValue_impl(const PropT& value) {
-            cachedValue_ = value;
-            return DEVICE_OK;
         }
 
         /** Called by the properties update method */
@@ -55,13 +56,13 @@ namespace rdl {
             // Use our helper functions above to do the work
             if (action == MM::BeforeGet) {
                 PropT temp;
-                if ((ret = getValue_impl(temp)) != DEVICE_OK) { return ret; }
+                if ((ret = get(temp)) != DEVICE_OK) { return ret; }
                 Assign(*pprop, temp);
             } else if (!readOnly_ && action == MM::AfterSet) {
                 PropT temp;
                 Assign(temp, *pprop);
-                if ((ret = setValue_impl(temp)) != DEVICE_OK) { return ret; }
-                return notifyChange_impl(temp);
+                if ((ret = set(temp)) != DEVICE_OK) { return ret; }
+                return notifyChange(temp);
             }
             return DEVICE_OK;
         }
@@ -97,8 +98,8 @@ namespace rdl {
         LocalProp(const PropT& initialValue) : LocalProp(false, false) {}
 
         /** Create a local property from a given PropInfo builder */
-        int createLocalProp(DeviceT* device, const PropInfo<PropT>& propInfo) {
-            return createLocalProp_impl(device, propInfo, readOnly_, initFromPropInfo_);
+        int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
+            return BaseT::create(device, propInfo, readOnly_, initFromPropInfo_);
         }
 
      protected:
@@ -139,14 +140,14 @@ namespace rdl {
         }
 
         /** Set the cached value of a read-only property. If the property was not yet created through
-        createLocalProp, then this value overrides the PropInfo initialValue. */
+        create, then this value overrides the PropInfo initialValue. */
         int setCached(const PropT& value) {
             initFromPropInfo_ = false;
             int ret;
-            if ((ret = setValue_impl(value)) != DEVICE_OK) {
+            if ((ret = setValue(value)) != DEVICE_OK) {
                 return ret;
             }
-            return notifyChange_impl(value);
+            return notifyChange(value);
         }
 
      protected:

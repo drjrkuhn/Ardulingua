@@ -134,7 +134,7 @@ namespace rdl {
             if (readOnly && cmds_.cmdGet()) {
                 typename ProtoT::StreamGuard monitor(pProto_);
                 // We do not have an initial value and must retrieve and cached the value from the device
-                if ((ret = getValue_impl(BaseT::cachedValue_)) != DEVICE_OK && CREATE_FAILS_IF_ERR_COMMUNICATION) {
+                if ((ret = getValue(BaseT::cachedValue_)) != DEVICE_OK && CREATE_FAILS_IF_ERR_COMMUNICATION) {
                     return ERR_COMMUNICATION;
                 }
                 useInitialValue = false;
@@ -158,7 +158,7 @@ namespace rdl {
         * Property getting/setting - internal
         *******************************************************************/
         /** Get the value from the remote. Derived classes may override. */
-        virtual int getValue_impl(PropT& __val) {
+        virtual int getValue(PropT& __val) {
 
 
             if (cmds_.hasChan()) {
@@ -248,7 +248,7 @@ namespace rdl {
                 if (cmds_.cmdGet()) {
                     // read the value from the remote device
                     PropT temp;
-                    if ((result = getValue_impl(temp)) != DEVICE_OK) {
+                    if ((result = getValue(temp)) != DEVICE_OK) {
                         return result;
                     }
                     BaseT::cachedValue_ = temp;
