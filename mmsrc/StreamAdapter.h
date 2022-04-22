@@ -4,8 +4,8 @@
     #define __STREAM_ADAPTER_H__
 
     #include <cstddef> // for size_t
-    #include <mutex>
     #include <deque>
+    #include <mutex>
 
 namespace rdl {
 
@@ -23,6 +23,17 @@ namespace rdl {
      *
      * > NOTE: Including the Arduino StreamT as a template parameters means we don't have
      * > to include our emulated "ArduinoCore-host" api here.
+     * 
+     * ## Rules-of-thumb for mutex locking
+     * 
+     * If a method with a std::lock_guard calls another method with its own
+     * std::lock_guard, this will create a nested mutex halt condition. To keep
+     * from nested locks, we stick to a few set of rules:
+     * 
+     *    - only public methods have lock guards
+     *    - private/protected methods don't have lock guards
+     *    - public methods don't call each other (no lock overlap)
+     *    - public methods call private/protected unlocked _impl methods
      *
      * @tparam HubT         MM HubDevice
      * @tparam StreamT      Arduino Stream base class to derive from.
@@ -33,54 +44,78 @@ namespace rdl {
         HubStreamAdapter(HubT* hub) : hub_(hub) {}
 
         virtual size_t write(const uint8_t byte) override {
-            return write(&byte, 1);
+            std::lock_guard<std::mutex> _(guard_);
+            return write_impl(&byte, 1);
         }
 
         virtual size_t write(const uint8_t* str, size_t n) override {
             std::lock_guard<std::mutex> _(guard_);
-
-            int err = hub_->WriteToComPort(hub_->port().c_str(), str, static_cast<unsigned int>(n));
-            return (err == DEVICE_OK) ? n : 0;
+            return write_impl(str, n);
         }
 
         int availableForWrite() override {
+            std::lock_guard<std::mutex> _(guard_);
             // boost::AsioClient doesn't have a write limit
-            return std::numeric_limits<int>::max(); 
+            return std::numeric_limits<int>::max();
         }
 
         virtual int available() override {
             std::lock_guard<std::mutex> _(guard_);
-
             getNextChar();
             return static_cast<int>(rdbuf_.size());
         }
 
         virtual int read() override {
             std::lock_guard<std::mutex> _(guard_);
+            return read_impl();
+        }
 
+        virtual int peek() override {
+            std::lock_guard<std::mutex> _(guard_);
+            getNextChar();
+            return rdbuf_.empty() ? -1 : rdbuf_.front();
+        }
+
+        virtual void clear() {
+            std::lock_guard<std::mutex> _(guard_);
+            hub_->PurgeComPort(hub_->port().c_str());
+        }
+
+        size_t readBytes(char* buffer, size_t length) {
+            std::lock_guard<std::mutex> _(guard_);
+            return readBytes_impl(buffer, length);
+        }
+
+        std::string readStdStringUntil(char terminator) {
+            std::lock_guard<std::mutex> _(guard_);
+            return readStringUntil_impl(terminator);
+        }
+
+        size_t readBytesUntil(char terminator, char* buffer, size_t length) {
+            std::lock_guard<std::mutex> _(guard_);
+            return readBytesUntil_impl(terminator, buffer, length);
+        }
+
+        size_t readBytesUntil(char terminator, uint8_t* buffer, size_t length) {
+            std::lock_guard<std::mutex> _(guard_);
+            return readBytesUntil_impl(terminator, reinterpret_cast<char*>(buffer), length);
+        }
+
+     protected:
+        size_t write_impl(const uint8_t* str, size_t n) {
+            int err = hub_->WriteToComPort(hub_->port().c_str(), str, static_cast<unsigned int>(n));
+            return (err == DEVICE_OK) ? n : 0;
+        }
+
+        int read_impl() {
             getNextChar();
             if (rdbuf_.empty()) return -1;
             int front = rdbuf_.front();
             rdbuf_.pop_front();
             return front;
         }
-        virtual int peek() override {
-            std::lock_guard<std::mutex> _(guard_);
 
-            getNextChar();
-            return rdbuf_.empty() ? -1 : rdbuf_.front();
-        }
-
-        virtual void clear() { 
-            std::lock_guard<std::mutex> _(guard_);
-
-            hub_->PurgeComPort(hub_->port().c_str()); 
-        }
-
-        /**
-         * read the next set of bytes from the device
-         */
-        // readBytes(buffer,length) calls
+        // readBytes_impl(buffer,length) calls
         //    int err =
         //    DeviceBase::ReadFromComPort(portLabel,buf,bufLength,[OUT]bytesRead);
         //        which calls
@@ -94,11 +129,11 @@ namespace rdl {
         //                GetImpl()->Read(buf, bufLen, [OUT]charsRead);
         //
         // So this is a somewhat direct read operation compred to GetSerialAnswer
-        size_t readBytes(char* buffer, size_t length) {
+        size_t readBytes_impl(char* buffer, size_t length) {
             std::lock_guard<std::mutex> _(guard_);
 
             int lastc = -1;
-            if (!rdbuf_.empty() && (lastc = read()) >= 0) {
+            if (!rdbuf_.empty() && (lastc = read_impl()) >= 0) {
                 *(buffer++) = (char)lastc;
                 length--;
             }
@@ -117,10 +152,6 @@ namespace rdl {
                 return bytesRead;
             }
         }
-
-        /**
-         * readStringUntil
-         */
 
         // Oh, the tagled web we weave to search for messages with terminators.
         // readStringUntil calls
@@ -150,14 +181,11 @@ namespace rdl {
         //
         // So, `readStringUntil`, creates two additional buffers and one intermediate
         // string (with its own buffer)
-
-        std::string readStdStringUntil(char terminator) {
-            std::lock_guard<std::mutex> _(guard_);
-
+        std::string readStdStringUntil_impl(char terminator) {
             std::string compose;
             // deal with any character already in the read buffer
             int lastc;
-            if (!rdbuf_.empty() && (lastc = read()) >= 0) {
+            if (!rdbuf_.empty() && (lastc = read_impl()) >= 0) {
                 compose.append(1, (char)lastc);
                 if (lastc == terminator) return compose;
             }
@@ -178,10 +206,8 @@ namespace rdl {
             return compose;
         }
 
-        size_t readBytesUntil(char terminator, char* buffer, size_t length) {
-            std::lock_guard<std::mutex> _(guard_);
-            
-            std::string answer = readStdStringUntil(terminator);
+        size_t readBytesUntil_impl(char terminator, char* buffer, size_t length) {
+            std::string answer = readStdStringUntil_impl(terminator);
             size_t ngood       = std::min(answer.length(), length);
             std::strncpy(buffer, answer.c_str(), ngood);
             if (answer.length() > length) {
@@ -195,11 +221,6 @@ namespace rdl {
             return ngood;
         }
 
-        size_t readBytesUntil(char terminator, uint8_t* buffer, size_t length) {
-            return readBytesUntil(terminator, reinterpret_cast<char*>(buffer), length);
-        }
-
-     protected:
         /** buffer the next character because MMCore doesn't have a peek 
          * function for serial */
         void getNextChar() {
