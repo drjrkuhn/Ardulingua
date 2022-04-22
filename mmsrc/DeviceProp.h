@@ -227,28 +227,55 @@ namespace rdl {
                               const PropInfo<PropT>& propInfo,
                               MM::ActionFunctor* action,
                               bool readOnly,
-                              bool useInitialValue) {
+                              bool useInfoInitialValue) {
             assert(device != nullptr);
-            device_    = device;
-            name_      = propInfo.name();
-            briefName_ = propInfo.briefName() ? propInfo.briefName() : std::string("");
-            readOnly_  = readOnly;
+            device_      = device;
+            name_        = propInfo.name();
+            briefName_   = propInfo.briefName() ? propInfo.briefName() : std::string("");
+            readOnly_    = readOnly;
             sequencable_ = propInfo.isReadOnly();
-            if (useInitialValue) {
+            if (useInfoInitialValue) {
                 cachedValue_ = propInfo.initialValue();
             }
-            // call the device's CreateProperty() method to create the property
-            return createMMPropOnDevice(device_, propInfo, cachedValue_, action, readOnly);
+
+            // double-check the read-only flag if the propInfo was created with the assertReadOnly() flag
+            if (propInfo.isReadOnly() && !readOnly) {
+                assert(propInfo.isReadOnly() == readOnly);
+                // Create an "ERROR" property if assert was turned off during compile.
+                device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
+                return DEVICE_INVALID_PROPERTY;
+            }
+            int ret = device_->CreateProperty(name_.c_str(), ToString(cachedValue_).c_str(),
+                                              MMPropertyType_of<PropT>(cachedValue_),
+                                              readOnly, action, propInfo.isPreInit());
+            if (ret != DEVICE_OK) {
+                return ret;
+            }
+            if (propInfo.hasLimits()) {
+                ret = device->SetPropertyLimits(propInfo.name(), propInfo.minValue(), propInfo.maxValue());
+            }
+            if (propInfo.hasAllowedValues()) {
+                std::vector<std::string> allowedStrings;
+                for (PropT aval : propInfo.allowedValues()) {
+                    allowedStrings.push_back(ToString(aval));
+                }
+                device->SetAllowedValues(propInfo.name(), allowedStrings);
+            }
+            return ret;
         }
 
         /** Called by the properties update method. Subclasses must override. */
         virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
 
+#if 0
      private:
         /*******************************************************************
         * Create underlying MM::Property on device
+        * 
+        * TODO: Just integrate createMMPropOnDevice into createAndLinkProp
+        *       and remove these
         *
-        * - one based on a MM Action
+        * - one based on a MM Action 
         * - the other creates an MM Action from a device method
         ******************************************************************* /
 
@@ -268,18 +295,18 @@ namespace rdl {
             return createMMPropOnDevice(device, propInfo, initialValue, action, readOnly);
         };
 
-        /** Creates a property that calls an update function on device from the propInfo.
-         *
-         * Create MM device properties from PropInfo information. This version requires a device member function of the form
-         * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
-         */
-        template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device,
-                                               const PropInfo<PropT>& propInfo,
-                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
-                                               bool readOnly = false) {
-            return createMMPropOnDevice(device, propInfo, propInfo.initialValue(), fn, readOnly);
-        }
+        ///** Creates a property Without initial value that calls an update function on device from the propInfo.
+        // *
+        // * Create MM device properties from PropInfo information. This version requires a device member function of the form
+        // * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from propInfo.
+        // */
+        //template <typename PropT, class DeviceT>
+        //static inline int createMMPropOnDevice(DeviceT* device,
+        //                                       const PropInfo<PropT>& propInfo,
+        //                                       int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
+        //                                       bool readOnly = false) {
+        //    return createMMPropOnDevice(device, propInfo, propInfo.initialValue(), fn, readOnly);
+        //}
 
         /** Creates a property that calls an update action on device from the propInfo.
          *
@@ -321,6 +348,8 @@ namespace rdl {
             }
             return ret;
         };
+#endif
+
 
      protected:
         PropT cachedValue_;
