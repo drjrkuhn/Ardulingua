@@ -167,7 +167,7 @@ namespace rdl {
      * The DeviceT template parameter holds the device type
      */
 
-    template <typename PropT, class DeviceT>
+    template <class DeviceT, typename PropT>
     class DeviceProp_Base {
      public:
         typedef int (DeviceT::*NotifyChangeFnT)(const char* propName, const char* propValue);
@@ -211,6 +211,9 @@ namespace rdl {
         DeviceT* owner() const { return device_; }
 
      protected:
+        /** Called by the properties update method. Subclasses must override. */
+        virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
+
         /** Protected constructor - only called by derived classes */
         DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(""), notifyChangeFunc_(nullptr) {}
 
@@ -263,9 +266,6 @@ namespace rdl {
             }
             return ret;
         }
-
-        /** Called by the properties update method. Subclasses must override. */
-        virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
 
 #if 0
      private:

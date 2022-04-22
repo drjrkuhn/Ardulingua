@@ -22,8 +22,8 @@ namespace rdl {
      *
      * The DeviceT template parameter holds the device type
      */
-    template <typename PropT, typename DeviceT>
-    class LocalProp_Base : public DeviceProp_Base<PropT, DeviceT> {
+    template <class DeviceT, typename PropT>
+    class LocalProp_Base : public DeviceProp_Base<DeviceT, PropT> {
      public:
         /** Get the value before updating the property. Derived classes may override. */
         virtual int get(PropT& value) {
@@ -38,14 +38,14 @@ namespace rdl {
         }
 
      protected:
-        using BaseT   = DeviceProp_Base<PropT, DeviceT>;
-        using ActionT = MM::Action<LocalProp_Base<PropT, DeviceT>>;
+        using BaseT   = DeviceProp_Base<DeviceT, PropT>;
+        using ActionT = MM::Action<LocalProp_Base<DeviceT, PropT>>;
 
         LocalProp_Base() = default;
 
         /*	Link the property to the device and initialize from the propInfo.	*/
         virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
-            MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<PropT, DeviceT>::OnExecute);
+            MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<DeviceT, PropT>::OnExecute);
             readOnly_               = readOnly;
             return createAndLinkProp(device, propInfo, pAct, readOnly, usePropInfoInitialValue);
         }
@@ -84,10 +84,10 @@ namespace rdl {
      * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
      * The DeviceT template parameter holds the device type
      */
-    template <typename PropT, typename DeviceT>
-    class LocalProp : public LocalProp_Base<PropT, DeviceT> {
+    template <class DeviceT, typename PropT>
+    class LocalProp : public LocalProp_Base<DeviceT, PropT> {
      protected:
-        using BaseT = LocalProp_Base<PropT, DeviceT>;
+        using BaseT = LocalProp_Base<DeviceT, PropT>;
 
      public:
         /** A local read/write property that will be initialized from the PropInfo initialValue. */
@@ -124,10 +124,10 @@ namespace rdl {
      * For example, if PropT=char, int, or long, then the property will be designated MM::Integer
      * The DeviceT template parameter holds the device type
      */
-    template <typename PropT, typename DeviceT>
-    class LocalReadOnlyProp : public LocalProp<PropT, DeviceT> {
+    template <class DeviceT, typename PropT>
+    class LocalReadOnlyProp : public LocalProp<DeviceT, PropT> {
      protected:
-        using BaseT = LocalProp<PropT, DeviceT>;
+        using BaseT = LocalProp<DeviceT, PropT>;
 
      public:
         /** A local read-only property that will be initialized from the PropInfo initialValue. */
