@@ -88,10 +88,15 @@ namespace rdl {
          * Getters
          *******************************************************************/
         /** Get the property name. */
-        const char* name() const { return name_; }
+        const char* name() const { return name_.c_str(); }
+
 
         /** Get the property brief name (for remote). */
-        const char* briefName() const { return briefName_; }
+        const char* briefName() const { return briefName_.c_str(); }
+
+        std::string methodName(char code) const {
+            return std::string(1, code).append(briefName());
+        }
 
         /** Get the initial property value. */
         PropT initialValue() const { return initialValue_; }
@@ -139,8 +144,8 @@ namespace rdl {
      protected:
         PropInfo(const char* name, const PropT& initialValue) : name_(name), initialValue_(initialValue) {}
 
-        const char* name_;
-        const char* briefName_ = nullptr;
+        std::string name_;
+        std::string briefName_;
         PropT initialValue_;
         bool hasLimits_        = false;
         double minValue_       = 0;
@@ -158,6 +163,10 @@ namespace rdl {
     /**
      * A class to hold and update a micromanager property.
      *
+     * For simple (i.e. local) properties, the `cachedValue_` member
+     * should be treated as the "remote" value. This is our local
+     * copy of the data held in the MM::Property storage.
+     * 
      * Devices should not create a DeviceProp_Base directly, but should create one of its derived members and then
      * call createDeviceProp. Micromanager updates the property through the OnExecute member function.
      *
@@ -177,22 +186,6 @@ namespace rdl {
             notifyChangeFunc_ = notifyChangeFunc;
         }
 
-        /** Sets the Device Property, which updates the getCachedValue */
-        virtual int set(const PropT& value) {
-            int ret;
-            if ((ret = Assign(device_, name_.c_str(), value)) != DEVICE_OK) return ret;
-            cachedValue_ = value;
-            return notifyChange(value);
-        }
-
-        /** Get the device property directly */
-        virtual int get(PropT& val) const { return Assign(val, device_, name_.c_str()); };
-
-        /** Get the cached property value (last call to set()) */
-        virtual int getCached(PropT& value) const {
-            value = cachedValue_;
-            return DEVICE_OK;
-        }
         /** Get the property name */
         const std::string name() const { return name_; }
 
@@ -204,6 +197,28 @@ namespace rdl {
 
         bool isSequencable() const { return sequencable_; }
 
+        /** Set both the internal property value and the property store value. */
+        int SetProperty(const PropT value) {
+            int ret;
+            if ((ret = set_impl(value)) != DEVICE_OK) {
+                return ret;
+            }
+            if ((ret = Assign(device_, name_.c_str(), value)) != DEVICE_OK) {
+                return ret;
+            }
+            return notifyChange(value);
+        }
+
+        /** Get the internal property value directly (NOT the property store value). */
+        int GetProperty(PropT& value) const {
+            return get_impl(value);
+        }
+
+        /** Get the locally cached property value directly (NOT the property store value). */
+        int GetCachedProperty(PropT& value) const {
+            return getCached_impl(value);
+        }
+
         /**
          * Get the Device that owns the property (hub or sub-device).
          * The owner device does the actual setting and getting of property values!
@@ -213,6 +228,28 @@ namespace rdl {
      protected:
         /** Called by the properties update method. Subclasses must override. */
         virtual int OnExecute(MM::PropertyBase* __pProp, MM::ActionType __pAct) = 0;
+
+        /**
+         * Set this internal property value. Should update cachedValue_.
+         * This does NOT read the underlying MM Property store for the
+         * value to set via DeviceBase::GetProperty(name,value. 
+         * That should happen during OnExecute
+         */
+        virtual int set_impl(const PropT value) = 0;
+
+        /**
+         * Get the internal device property directly.
+         * This does NOT update the underlying MM Property store via
+         * DeviceBase::SetProperty(name,value). That should happen during OnExecute
+         */
+        virtual int get_impl(PropT& val) const = 0;
+
+        /**
+         * Get the inernal cached property value (last call to set()).
+         * This does NOT update the underlying MM Property store via
+         * DeviceBase::SetProperty(name,value). That should happen during OnExecute
+         */
+        virtual int getCached_impl(PropT& value) const = 0;
 
         /** Protected constructor - only called by derived classes */
         DeviceProp_Base() : cachedValue_(), readOnly_(false), device_(nullptr), name_(""), notifyChangeFunc_(nullptr) {}
@@ -234,7 +271,7 @@ namespace rdl {
             assert(device != nullptr);
             device_      = device;
             name_        = propInfo.name();
-            briefName_   = propInfo.briefName() ? propInfo.briefName() : std::string("");
+            briefName_   = propInfo.briefName();
             readOnly_    = readOnly;
             sequencable_ = propInfo.isReadOnly();
             if (useInfoInitialValue) {

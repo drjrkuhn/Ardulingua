@@ -56,6 +56,10 @@ namespace rdl {
 
     }; // class delegate_base
 
+    /************************************************************************
+     * Generic delegate with of type erased.
+     ***********************************************************************/
+
     class delegate : public delegate_base {
      public:
         delegate() = delete;

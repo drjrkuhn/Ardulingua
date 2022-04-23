@@ -75,6 +75,11 @@ namespace rdl {
      * ### RPC call with error return
      * --> {"m": "subtract", "p": [42], "i": 3}
      * <-- {"e": -32600, "i": 3}
+     * 
+     * ## RPC set-notify/get get pair [SETN-GET]
+     * --> {"m": "setfoo", "p": [3.1999]}
+     * --> {"m": "gettfoo", "i": 4}
+     * <-- {"r": 3.2, "i": 4}
      *
      ***********************************************************************/
 

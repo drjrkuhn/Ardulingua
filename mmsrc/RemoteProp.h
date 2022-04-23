@@ -1,16 +1,16 @@
 #pragma once
 
 #ifndef __REMOTEPROP_H__
-#define __REMOTEPROP_H__
+    #define __REMOTEPROP_H__
 
-#include "DeviceProp.h"
-#include "DevicePropHelpers.h"
-#include "DeviceError.h"
+    #include "DeviceError.h"
+    #include "DeviceProp.h"
+    #include "DevicePropHelpers.h"
+    #include <Delegate.h>
+    #include <JsonDispatch.h>
+    #include <StreamAdapter.h>
 
-#include "StreamAdapter.h"
-#include <JsonDispatch.h>
-
-    /************************************************************************
+/************************************************************************
      * # Remote properties
      * 
      * ## Briefs and Property Codes
@@ -33,19 +33,49 @@
      *   > string to compute the hash-value for lookup. So use a brief method
      *   > tag like "dv" rather than "MyDACOutputValueInVolts".
      * 
-     * | code | operation                          | call/notify |
-     * |:----:|:-----------------------------------|:------------|
-     * |  ?   | GET value                          | call        |
-     * |  !   | SET value                          | call        |
-     * |  *   | DO task                            | call        |
-     * |  >   | NOTIFY task (DO without response)  | notify      |
-     * |  --  | ==== SEQUENCE/ARRAY COMMANDS ====  | --          |
-     * |  ^   | GET maximum size of seq array      | call        |
-     * |  #   | GET number of values in seq array  | call        |
-     * |  0   | CLEAR seq array                    | notify      |
-     * |  +   | ADD value to sequence array        | notify      |
-     * |  *   | `DO task` doubles as start seq.    | call        |
-     * |  >   | `NOTIFY task` to start seq.        | notify      |
+     * | code | operation                          |meth[^1]| server signature[^2]                      |
+     * |:----:|:-----------------------------------|:-----:|:-------------------------------------------|
+     * |  ?   | GET value                          | get   | call<T,EX...>("?brief",ex...)->T           |
+     * |  !   | SET value                          | set   | call<void,T,EX...>("!brief",t,ex...)       |
+     * |  !   | SETN value - no reply              | set   | notify<void,T,EX...>("!brief",t,ex...)     |
+     * |  *   | ACT task                           | act   | call<void,EX...>("*brief",ex...)           |
+     * |  >   | NOTIFY task (DO without response)  | act   | notify<void,EX...>(">brief",ex...)         |
+     * |  --  | ==== SEQUENCE/ARRAY COMMANDS ====  | --    | --                                         |
+     * |  ^   | GET maximum size of seq array      | array | call<size_t,EX...>("^brief",ex...)->size_t |
+     * |  #   | GET number of values in seq array  | array | call<size_t,EX...>("#brief",ex...)->size_t |
+     * |  0   | CLEAR seq array                    | array | notify<size_t,EX...>("0brief",ex...)->dummy|
+     * |  +   | ADD value to sequence array        | set   | notify<void,T,EX...>("+brief",ex...)       |
+     * |  *   | `ACT task` doubles as start seq.   | act   | call<void,EX...>("*brief",ex...)           |
+     * |  >   | `NOTIFY task` to start seq.        | act   | notify<void,EX...>(">brief",ex...)         |
+     * 
+     * [^1]: meth is the client method whose parameters match the call/notify signature
+     * [^2]: Signature of the server method. T is the property type on the device, EX... are an 
+     * optional set of extra parameters such as channel number
+     * 
+     * ### Client transform/dispatch methods
+     * 
+     * From the signature table above, we need four local methods for transforming MM Properties
+     * into eventual RPC calls on the server. The client method might also transform the
+     * MM::PropertyType into the type T required by the server. Each method type includes
+     * an optional set of compile-time extra parameters such as channel number, pin number, etc.
+     * What the server does with this iinformation depends on the method code.
+     * 
+     * - get: gets the remote property value
+     * - set: sets the remote property value
+     * - act (action): performs some task associated with the property and check status
+     * - notify: perform some task associated with the property but don't check status
+     * - array: (array actions) gets either the current or maximum array size or clears the array
+     * 
+     * ### Set/Get pair
+     * 
+     * The normal 'SET' call method doesn't return the value actually set on the remote
+     * device - just an OK (returns caller id) or error code.
+     * 
+     * If we want to verify and retrive the value that was actually set to the device
+     * We can use a SETN then GET. A normal SET-GET RPC pair would need to wait for two
+     * replies. Instead we can use SETN (SET with a notify, aka no reply) followed immediately
+     * by a GET call.
+     * 
      * 
      * ### Sequences and array value streaming (notify)
      * 
@@ -67,13 +97,14 @@
      * hard-code each coded method call with a series of key/lambda function
      * pairs. For example in pseudo code, a property with a value and
      * possible sequence might be coded as lambda captures (pseudocode):
-     * @code map<String,function> dispatch_map {
-     *      {"?prop", call<int>(      [&prop_]() -> int          { return prop_; })},
-     *      {"!prop", call<void,int>( [&prop_](int val)          { prop_ = val; })},
-     *      {"^prop", call<int>(      [&pseq_max_]() -> int      { return pseq_max_; })},
-     *      {"#prop", call<int>(      [&pseq_count_]() -> int    { return pseq_count_; })},
-     *      {"0prop", call<void,int>( [&pseq_count_]()           { pseq_count_ = 0; })},
-     *      {"+prop", call<void,int>( [&pseq_,&acount_](int val) { pseq_[pseq_count_] = val; })}
+     * @code 
+     *  map<String,function> dispatch_map {
+     *      {"?prop", call<int>(     [&prop_]()->int            { return prop_; })},
+     *      {"!prop", call<void,int>([&prop_](int val)          { prop_ = val; })},
+     *      {"^prop", call<int>(     [&pseq_max_]()->int        { return pseq_max_; })},
+     *      {"#prop", call<int>(     [&pseq_count_]()->int      { return pseq_count_; })},
+     *      {"0prop", call<int>(     [&pseq_count_]()->int      { pseq_count_ = 0; return 0; })},
+     *      {"+prop", call<void,int>([&pseq_,&acount_](int val) { pseq_[pseq_count_] = val; })}
      *  };
      * @endcode 
      * Future version of remote dispatch might incorporate auto-decoding 
@@ -108,58 +139,101 @@
      ***********************************************************************/
 namespace rdl {
 
+    enum struct codes : char {
+        get      = '?',
+        set      = '!',
+        act      = '*',
+        notify   = '>',
+        max_size = '^',
+        size     = '#',
+        clear    = '0',
+        add      = '+'
+    };
+
     /** Throw an error during createRemoteProp_impl on bad communication at creation? */
     const bool CREATE_FAILS_IF_ERR_COMMUNICATION = false;
 
+    const size_t BSIZE = rdl::BUFFER_SIZE;
 
-    template <typename PropT, typename RemoteT, class DeviceT, class HubT, class ProtoT>
-    class RemoteProp_Base : public DeviceProp_Base<PropT, DeviceT> {
-        using BaseT = DeviceProp_Base<PropT, DeviceT>;
-        using ActionT = MM::ActionT<RemoteProp_Base<PropT, DeviceT, HubT>>
+    template <class DeviceT, typename PropT, typename RemoteT, typename... ExT>
+    class RemoteProp_Base : public DeviceProp_Base<DeviceT, PropT> {
+        using BaseT   = DeviceProp_Base<DeviceT, PropT>;
+        using ActionT = MM::ActionT<RemoteProp_Base<DeviceT, PropT, RemoteT>>;
+        using ClientT = jsonclient<rdl::StreamAdapter, std::string, BSIZE>;
 
      protected:
-        RemoteProp_Base() : stream_(nullptr) {}
-        ProtoT* stream_;
+        RemoteProp_Base() : client_(nullptr) {}
+        ClientT* client_;
+        delegate get_delegate_;
+        delegate set_delegate_;
+        delegate do_delegate_;
+        delegate array_delegate_;
 
-      protected:
+     protected:
         /**	Link the property to the device through the stream and initialize from the propInfo.
 	    * **THIS IS THE PRIMARY ENTRY POINT for creating remote properties.**
 		*/
-        int createRemoteProp_impl(DeviceT* device, ProtoT* stream, const PropInfo<PropT>& propInfo) {
-            pProto_ = stream;
-            cmds_   = cmdSet;
-            int ret;
-            bool readOnly        = propInfo.isReadOnly();
+        int create(DeviceT* device, ClientT* client, const PropInfo<PropT>& propInfo) {
+            client_ = client;
+
+            MM::ActionFunctor* action = new ActionT(this, &RemoteProp_Base<DeviceT, PropT>::OnExecute);
+
             bool useInitialValue = false;
-            if (readOnly && cmds_.cmdGet()) {
-                typename ProtoT::StreamGuard monitor(pProto_);
-                // We do not have an initial value and must retrieve and cached the value from the device
-                if ((ret = getValue(BaseT::cachedValue_)) != DEVICE_OK && CREATE_FAILS_IF_ERR_COMMUNICATION) {
-                    return ERR_COMMUNICATION;
-                }
-                useInitialValue = false;
-            } else if (cmds_.propInfo()) {
-                useInitialValue = true;
-            }
-            MM::ActionFunctor* pAct = new ActionT(this, &RemoteProp_Base<PropT, DeviceT, HubT>::OnExecute);
-            ret                     = createDevicePropH(device, propInfo, pAct, readOnly, useInitialValue);
-            if (ret == DEVICE_OK && cmds_.propInfo()) {
-                typename ProtoT::StreamGuard monitor(pProto_);
+            //if (readOnly && cmds_.cmdGet()) {
+            //    typename ProtoT::StreamGuard monitor(pProto_);
+            //    // We do not have an initial value and must retrieve and cached the value from the device
+            //    if ((ret = getValue(BaseT::cachedValue_)) != DEVICE_OK && CREATE_FAILS_IF_ERR_COMMUNICATION) {
+            //        return ERR_COMMUNICATION;
+            //    }
+            //    useInitialValue = false;
+            //} else if (cmds_.propInfo()) {
+            //    useInitialValue = true;
+            //}
+            try {
+                ASSERT_TRUE(propInfo.briefName() != nullptr || !propInfo.briefName().empty()), ERROR_JSON_METHOD_NOT_FOUND);
                 // set the property on the remote device if possible
-                if ((ret = setRemote_impl(BaseT::cachedValue_)) != DEVICE_OK && CREATE_FAILS_IF_ERR_COMMUNICATION) {
-                    return ERR_COMMUNICATION;
-                }
+                std::string method = "?" + BaseT::briefName_;
+                PropT val;
+                ASSERT_OK(client_->call<RetT<PropT>>(method.c_str(), val));
+                ASSERT_OK(BaseT::createAndLinkProp(device, propInfo, action, propInfo.isReadOnly(), useInitialValue));
+                BaseT::cachedValue_ = val;
+                return DEVICE_OK;
+            } catch (DeviceResultException e) {
+                // Create an "ERROR" property if assert was turned off during compile.
+                device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
+                return DEVICE_INVALID_PROPERTY;
             }
-            return DEVICE_OK;
         }
 
+        /** Sets the Remote Device Property, which updates the getCachedValue */
+        virtual int set(const PropT value) {
+            int ret = set_delegate.call<RetT<int>,std::string,PropT)(methodName(codes::set), value);
+            if (ret != DEVICE_OK) 
+                return ret;
+            cachedValue_ = value;
+            return notifyChange(value);
+        }
+
+        /** Get the device property directly */
+        virtual int get(PropT& value) const {
+            int ret = set_delegate.call<RetT<int>,std::string,PropT&)(methodName(codes::set), value);
+            if (ret != DEVICE_OK) 
+                return ret;
+            cachedValue_ = value;
+            return notifyChange(value);
+        };
+
+        /** Get the cached property value (last call to set()) */
+        virtual int getCached(PropT& value) const {
+            value = cachedValue_;
+            return DEVICE_OK;
+        }
 
         /*******************************************************************
         * Property getting/setting - internal
         *******************************************************************/
         /** Get the value from the remote. Derived classes may override. */
         virtual int getValue(PropT& __val) {
-
 
             if (cmds_.hasChan()) {
                 if (pProto_->dispatchChannelGet(cmds_.cmdGet(), cmds_.cmdChan(), __val)) {
@@ -239,33 +313,27 @@ namespace rdl {
             return ERR_COMMUNICATION;
         }
 
-        /* Called by the properties update method.
-			 This is the main Property update routine. */
+        /*
+        * Called by the properties update method.
+        * This is the main Property update routine. 
+        * 
+        * See DeviceBase::OnLabel for example
+        */
         virtual int OnExecute(MM::PropertyBase* pProp, MM::ActionT eAct) override {
-            typename ProtoT::StreamGuard monitor(pProto_);
-            int result;
+            int ret;
             if (eAct == MM::BeforeGet) {
-                if (cmds_.cmdGet()) {
-                    // read the value from the remote device
-                    PropT temp;
-                    if ((result = getValue(temp)) != DEVICE_OK) {
-                        return result;
-                    }
-                    BaseT::cachedValue_ = temp;
-                    SetProp<PropT>(pProp, BaseT::cachedValue_);
-                } else {
-                    // Just use the getCachedValue
-                    SetProp<PropT>(pProp, BaseT::cachedValue_);
-                }
-            } else if (cmds_.propInfo() && eAct == MM::AfterSet) {
                 PropT temp;
-                SetValue<PropT>(temp, pProp);
-                if ((result = setRemote_impl(temp)) != DEVICE_OK) {
-                    return result;
+                if ((ret = get(temp)) != DEVICE_OK) { return ret; }
+                cachedValue_ = temp;
+                Assign(*pprop, temp);
+            } else if (!readOnly_ && eAct == MM::AfterSet) {
+                PropT temp;
+                Assign(temp, *pprop);
+                if ((ret = set(temp)) != DEVICE_OK) {
+                    return ret;
                 }
-                BaseT::cachedValue_ = temp;
-                return notifyChange_impl(BaseT::cachedValue_);
-            } else if (cmds_.cmdSetSeq() && eAct == MM::IsSequenceable) {
+                return notifyChange(temp);
+            } else if (sequencable_ && eAct == MM::IsSequenceable) {
                 hprot::prot_size_t maxSize;
                 if ((result = getRemoteSequenceSize_impl(maxSize)) != DEVICE_OK) {
                     return result;
@@ -407,9 +475,8 @@ namespace rdl {
         }
     };
 
-
-#if OLD_DeviceHexProtocol_Detection_Code
-		/** Used by DEV::DetectDevice to determine if a given serial port is actively
+    #if OLD_DeviceHexProtocol_Detection_Code
+    /** Used by DEV::DetectDevice to determine if a given serial port is actively
 			connected to a valid slave device. 
 		
 			Pseudo-code for the detection process
@@ -439,64 +506,61 @@ namespace rdl {
 			healthy slave device on this __stream.
 			@return @see MM::DeviceDetectionStatus
 		*/
-		MM::DeviceDetectionStatus tryStream(DEV* __target, std::string __stream, long __baudRate) {
-			BaseClass::StreamGuard(this);
-			MM::DeviceDetectionStatus result = MM::Misconfigured;
-			char defaultAnswerTimeout[MM::MaxStrLength];
-			try {
-				// convert stream name to lower case
-				std::string streamLowerCase = __stream;
-				std::transform(streamLowerCase.begin(), streamLowerCase.end(), streamLowerCase.begin(), ::tolower);
-				if (0 < streamLowerCase.length() && 0 != streamLowerCase.compare("undefined") && 0 != streamLowerCase.compare("unknown")) {
-					const char* streamName = __stream.c_str();
-					result = MM::CanNotCommunicate;
+    MM::DeviceDetectionStatus tryStream(DEV* __target, std::string __stream, long __baudRate) {
+        BaseClass::StreamGuard(this);
+        MM::DeviceDetectionStatus result = MM::Misconfigured;
+        char defaultAnswerTimeout[MM::MaxStrLength];
+        try {
+            // convert stream name to lower case
+            std::string streamLowerCase = __stream;
+            std::transform(streamLowerCase.begin(), streamLowerCase.end(), streamLowerCase.begin(), ::tolower);
+            if (0 < streamLowerCase.length() && 0 != streamLowerCase.compare("undefined") && 0 != streamLowerCase.compare("unknown")) {
+                const char* streamName = __stream.c_str();
+                result                 = MM::CanNotCommunicate;
 
-					MM::Core* core = accessor::callGetCoreCallback(__target);
+                MM::Core* core = accessor::callGetCoreCallback(__target);
 
-					// record the default answer time out
-					core->GetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
+                // record the default answer time out
+                core->GetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
 
-					// device specific default communication parameters for Arduino
-					core->SetDeviceProperty(streamName, MM::g_Keyword_BaudRate, std::to_string(__baudRate).c_str());
-					core->SetDeviceProperty(streamName, MM::g_Keyword_DataBits, g_SerialDataBits);
-					core->SetDeviceProperty(streamName, MM::g_Keyword_Parity, g_SerialParity);
-					core->SetDeviceProperty(streamName, MM::g_Keyword_StopBits, g_SerialStopBits);
-					core->SetDeviceProperty(streamName, MM::g_Keyword_Handshaking, g_SerialHandshaking);
-					core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, g_SerialAnswerTimeout);
-					core->SetDeviceProperty(streamName, MM::g_Keyword_DelayBetweenCharsMs, g_SerialDelayBetweenCharsMs);
-					MM::Device* pS = core->GetDevice(__target, streamName);
+                // device specific default communication parameters for Arduino
+                core->SetDeviceProperty(streamName, MM::g_Keyword_BaudRate, std::to_string(__baudRate).c_str());
+                core->SetDeviceProperty(streamName, MM::g_Keyword_DataBits, g_SerialDataBits);
+                core->SetDeviceProperty(streamName, MM::g_Keyword_Parity, g_SerialParity);
+                core->SetDeviceProperty(streamName, MM::g_Keyword_StopBits, g_SerialStopBits);
+                core->SetDeviceProperty(streamName, MM::g_Keyword_Handshaking, g_SerialHandshaking);
+                core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, g_SerialAnswerTimeout);
+                core->SetDeviceProperty(streamName, MM::g_Keyword_DelayBetweenCharsMs, g_SerialDelayBetweenCharsMs);
+                MM::Device* pS = core->GetDevice(__target, streamName);
 
-					pS->Initialize();
+                pS->Initialize();
 
-					// The first second or so after opening the serial port, the Arduino is 
-					// waiting for firmwareupgrades.  Simply sleep 2 seconds.
-					CDeviceUtils::SleepMs(2000);
-					startProtocol(__target, __stream);
-					purgeComPort();
-					// Try the detection function
-					int ret = testProtocol();
-					if (ret == DEVICE_OK) {
-						// Device was detected!
-						result = MM::CanCommunicate;
-					} else {
-						// Device was not detected. Keep result = MM::CanNotCommunicate
-						accessor::callLogMessageCode(__target, ret, true);
-					}
-					endProtocol();
-					pS->Shutdown();
-					// always restore the AnswerTimeout to the default
-					core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
-				}
-			} catch (...) {
-				accessor::callLogMessage(__target, "Exception in DetectDevice tryStream!", false);
-			}
-			return result;
-		}
-#endif
+                // The first second or so after opening the serial port, the Arduino is
+                // waiting for firmwareupgrades.  Simply sleep 2 seconds.
+                CDeviceUtils::SleepMs(2000);
+                startProtocol(__target, __stream);
+                purgeComPort();
+                // Try the detection function
+                int ret = testProtocol();
+                if (ret == DEVICE_OK) {
+                    // Device was detected!
+                    result = MM::CanCommunicate;
+                } else {
+                    // Device was not detected. Keep result = MM::CanNotCommunicate
+                    accessor::callLogMessageCode(__target, ret, true);
+                }
+                endProtocol();
+                pS->Shutdown();
+                // always restore the AnswerTimeout to the default
+                core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
+            }
+        } catch (...) {
+            accessor::callLogMessage(__target, "Exception in DetectDevice tryStream!", false);
+        }
+        return result;
+    }
+    #endif
 
 }; // namespace rdl
 
-
-
 #endif // __REMOTEPROP_H__
-
