@@ -10,7 +10,7 @@
     #include <JsonDispatch.h>
     #include <StreamAdapter.h>
 
-/************************************************************************
+    /************************************************************************
      * # Remote properties
      * 
      * ## Briefs and Property Codes
@@ -39,14 +39,16 @@
      * |  !   | SET value                          | set   | call<void,T,EX...>("!brief",t,ex...)       |
      * |  !   | NSET value - no reply              | set   | notify<void,T,EX...>("!brief",t,ex...)     |
      * |  *   | ACT task                           | act   | call<void,EX...>("*brief",ex...)           |
-     * |  >   | NOTIFY task (DO without response)  | act   | notify<void,EX...>(">brief",ex...)         |
+     * |  *   | NOTIFY task (DO without response)  | act   | notify<void,EX...>("*brief",ex...)         |
      * |  --  | ==== SEQUENCE/ARRAY COMMANDS ====  | --    | --                                         |
      * |  ^   | GET maximum size of seq array      | array | call<size_t,EX...>("^brief",ex...)->size_t |
      * |  #   | GET number of values in seq array  | array | call<size_t,EX...>("#brief",ex...)->size_t |
      * |  0   | CLEAR seq array                    | array | notify<size_t,EX...>("0brief",ex...)->dummy|
      * |  +   | ADD value to sequence array        | set   | notify<void,T,EX...>("+brief",ex...)       |
-     * |  *   | `ACT task` doubles as start seq.   | act   | call<void,EX...>("*brief",ex...)           |
-     * |  >   | `NOTIFY task` to start seq.        | act   | notify<void,EX...>(">brief",ex...)         |
+     * |  *   | ACT task doubles as start seq.     | act   | call<void,EX...>("*brief",ex...)           |
+     * |  *   | NOTIFY task to start seq.          | act   | notify<void,EX...>("*brief",ex...)         |
+     * |  ~   | STOP sequence                      | act   | call<void,EX...>("~brief",ex...)           |
+     * |  ~   | STOP sequence                      | act   | notify<void,EX...>("~brief",ex...)         |
      * 
      * [^1]: meth is the client method whose parameters match the call/notify signature
      * [^2]: Signature of the server method. T is the property type on the device, EX... are an 
@@ -62,11 +64,10 @@
      * 
      * - get: gets the remote property value
      * - set: sets the remote property value
-     * - act (action): performs some task associated with the property and check status
-     * - notify: perform some task associated with the property but don't check status
+     * - act (action): performs some task associated with the property and check status. Can be called or notified.
      * - array: (array actions) gets either the current or maximum array size or clears the array
      * 
-     * ### Set/Get pair
+     * ### Set/Get pair and volatile remote properties
      * 
      * The normal 'SET' call method doesn't return the value actually set on the remote
      * device - just an OK (returns caller id) or error number.
@@ -75,6 +76,12 @@
      * We can use a NSET then GET. A normal SET-GET RPC pair would need to wait for two
      * replies, one from the SET call, one from the GET call. Instead we can use 
      * NSET (notify-SET, i.e. no reply) followed immediately by a GET call.
+     * 
+     * A **volatile** remote property can cange behind-the-scenes. We cannot
+     * rely on a cached value and the remote property might not preserve the
+     * exact value of a SET operation. Volatile properties must:
+     * - Always Use NSET-GET pairs when setting
+     * - Always use GET and never use cached values.
      * 
      * ### Sequences and array value streaming (notify)
      * 
@@ -153,188 +160,158 @@ namespace rdl {
     //    add      = '+'
     //};
 
-    /** Throw an error during createRemoteProp_impl on bad communication at creation? */
-    const bool CREATE_FAILS_IF_ERR_COMMUNICATION = false;
-
-    const size_t BSIZE = rdl::BUFFER_SIZE;
+    #ifndef REMOTE_PROP_ARRAY_CHUNK_SIZE
+        #define REMOTE_PROP_ARRAY_CHUNK_SIZE 10
 
     template <class DeviceT, typename LocalT, typename RemoteT, typename... ExT>
     class RemoteProp_Base : public DeviceProp_Base<DeviceT, LocalT> {
+     protected:
         using BaseT   = DeviceProp_Base<DeviceT, LocalT>;
         using ActionT = MM::ActionT<RemoteProp_Base<DeviceT, LocalT, RemoteT>>;
         using ClientT = jsonclient<rdl::StreamAdapter, std::string, BSIZE>;
 
-     protected:
         RemoteProp_Base() : client_(nullptr) {}
         ClientT* client_;
-        bool verifySetValue_ = false;
-        delegate to_remote_delegate_;
-        delegate to_local_delegate_;
-        delegate get_delegate_;
-        delegate set_delegate_;
-        delegate do_delegate_;
-        delegate array_delegate_;
+        delegate::of<RetT<RemoteT>, LocalT> to_remote_delegate_;
+        delegate::of<RetT<LocalT>, RemoteT> to_local_delegate_;
 
      protected:
+        virtual RemoteT to_remote(LocalT& localv) const = 0;
+        virtual LocalT to_local(RemoteT& remotev) const = 0;
+
         std::string method(const char opcode) {
             return std::string(1, opcode).append(brief_);
         }
 
-        /** Sets the Remote Device Property, which updates the getCachedValue */
-        virtual int set_impl(const LocalT value) override {
-            RemoteT remotev = to_remote_delegate_.call<RetT<RemoteT>, LocalT>(value);
-            if (verifySetValue_) {
-                // SET-NOTIFY/GET pair
-                set_delegate.notify<RetT<int>,std::string,LocalT)(method('!').c_str(), remotev);
-                int ret = get_delegate.call<RetT<int>,std::string,RemoteT&)(method('?').c_str(), remotev);
-                if (ret != DEVICE_OK)
-                    return ret;
-                cachedValue_ = to_local_delegate_.call<RetT<LocalT>, RemoteT>(remotev);
-            } else {
-                // just SET
-                int ret = set_delegate.call<RetT<int>,std::string,RemoteT)(method('!').c_str(), remotev);
-                if (ret != DEVICE_OK)
-                    return ret;
-                cachedValue_ = value;
-            }
-            return notifyChange(cachedValue_);
-        }
 
-        /** Get the device property directly */
-        virtual int get_impl(LocalT& value) const override {
-            RemoteT remotev;
-            int ret = get_delegate.call<RetT<int>,std::string,RemoteT&)(method('?').c_str(), remotev);
-            if (ret != DEVICE_OK)
-                return ret;
-            cachedValue_ = value = to_local_delegate_.call<RetT<LocalT>, RemoteT>(remotev);            
-            return notifyChange(cachedValue_);
-        };
+        //      /**	Link the property to the device through the stream and initialize from the propInfo.
+        //   * **THIS IS THE PRIMARY ENTRY POINT for creating remote properties.**
+        //*/
+        //      int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo) {
+        //          client_ = client;
 
-        int get_seq_maxsize_impl(size_t& maxsize) const {
-            int ret = array_delegate_.call<RetT<RetT<int>,
-        }
+        //          MM::ActionFunctor* action = new ActionT(this, &RemoteProp_Base<DeviceT, LocalT>::OnExecute);
 
-        ////////////////////////////////////////////////////////////////////
-        /// Sequence setting and triggering
-        /// Sub-classes may override to change the default behavior
+        //          bool useInitialValue = false;
+        //          try {
+        //              ASSERT_TRUE(propInfo.brief() != nullptr && !propInfo.brief().empty()), ERROR_JSON_METHOD_NOT_FOUND);
+        //              // set the property on the remote device if possible
+        //              LocalT val;
+        //              ASSERT_OK(client_->call<RetT<LocalT>>(method('?').c_str(), val));
+        //              ASSERT_OK(BaseT::createAndLinkProp(device, propInfo, action, propInfo.isReadOnly(), useInitialValue));
+        //              BaseT::cachedValue_ = val;
+        //              return DEVICE_OK;
+        //          } catch (DeviceResultException e) {
+        //              // Create an "ERROR" property if assert was turned off during compile.
+        //              device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
+        //              return DEVICE_INVALID_PROPERTY;
+        //          }
+        //      }
+    };
 
-        /** Get the maximum size of the remote sequence. Derived classes may override. */
-        virtual int getRemoteSequenceSize_impl(hprot::prot_size_t& __size) const {
-            __size = getRemoteArrayMaxSizeH<LocalT>(cmds_.cmdSetSeq());
-            return DEVICE_OK;
-        }
+    template <class DeviceT, typename LocalT, typename RemoteT>
+    class RemoteTransformProp : RemoteProp_Base<DeviceT, LocalT, RemoteT> {
+     protected:
+        virtual RemoteT to_remote(LocalT& localv) const { return static_cast<RemoteT>(localv); }
+        virtual LocalT to_local(RemoteT& remotev) const { return static_cast<LocalT>(remotev); }
 
-        /** Set a remote sequence. Derived classes may override. */
-        virtual int setRemoteSequence_impl(const std::vector<std::string> __sequence) {
-            hprot::prot_size_t maxSize = getRemoteArrayMaxSizeH<LocalT>(cmds_.cmdSetSeq());
-            if (__sequence.size() > maxSize) {
-                return DEVICE_SEQUENCE_TOO_LARGE;
-            }
-            // Use a helper function to send the sequence string array
-            // to the device
-            if (!putRemoteStringArrayH<LocalT>(cmds_.cmdSetSeq(), __sequence, maxSize)) {
-                return ERR_COMMUNICATION;
-            }
-            return DEVICE_OK;
-        }
-
-        /** Start the remote sequence. Derived classes may override. */
-        virtual int startRemoteSequence_impl() {
-            if (cmds_.hasChan()) {
-                if (pProto_->dispatchChannelTask(cmds_.cmdStartSeq(), cmds_.cmdChan())) {
-                    return DEVICE_OK;
-                }
-            } else {
-                if (pProto_->dispatchTask(cmds_.cmdStartSeq())) {
-                    return DEVICE_OK;
-                }
-            }
-            return ERR_COMMUNICATION;
-        }
-
-        /** Stop the remote sequence. Derived classes may override. */
-        virtual int stopRemoteSequence_impl() {
-            if (cmds_.hasChan()) {
-                if (pProto_->dispatchChannelTask(cmds_.cmdStopSeq(), cmds_.cmdChan())) {
-                    return DEVICE_OK;
-                }
-            } else {
-                if (pProto_->dispatchTask(cmds_.cmdStopSeq())) {
-                    return DEVICE_OK;
-                }
-            }
-            return ERR_COMMUNICATION;
-        }
-
-        /*
-        * Called by the properties update method.
-        * This is the main Property update routine. 
-        * 
-        * See DeviceBase::OnLabel for example
-        */
-        virtual int OnExecute(MM::PropertyBase* pProp, MM::ActionT eAct) override {
+        virtual int set_impl(const LocalT localv) override {
+            RemoteT remotv = to_remote(localv);
             int ret;
-            if (eAct == MM::BeforeGet) {
-                LocalT temp;
-                if ((ret = get(temp)) != DEVICE_OK) { return ret; }
-                cachedValue_ = temp;
-                Assign(*pprop, temp);
-            } else if (!isReadOnly && eAct == MM::AfterSet) {
-                LocalT temp;
-                Assign(temp, *pprop);
-                if ((ret = set(temp)) != DEVICE_OK) {
+            if (isVolatile_) {
+                // NSET-GET pair
+                ret = client_->notify<RemoteT>(method('!').c_str(), value);
+                if (ret != DEVICE_OK)
                     return ret;
+                ret = client_->call<RemoteT>(method('?').c_str(), value);
+            } else {
+                // SET call
+                ret = client_->call<RemoteT>(method('!').c_str(), value);
+            }
+            if (ret != ERROR_OK)
+                return ret;
+            cachedValue_ = localv;
+            return DEVICE_OK;
+        }
+
+        ///** Get the value before updating the property. Derived classes may override. */
+        virtual int get_impl(LocalT& localv) const override {
+            RemoteT remotev;
+            int ret = client_->call<RemoteT>(method(opcode).c_str(), localv);
+            if (ret != ERROR_OK)
+                return ret;
+            localv = to_local(remotev);
+            cachedValue_ = localv;
+            return DEVICE_OK;
+        }
+
+        ///** Get the value before updating the property. Derived classes may override. */
+        virtual int getCached_impl(LocalT& localv) const override {
+            if (isVolatile_)
+                return get_impl(localv);
+            localv = cachedValue_;
+            return ERROR_OK;
+        }
+
+        virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
+            int ret;
+            if (action == MM::BeforeGet) {
+                PropT temp, oldv = cachedValue_;
+                if ((ret = getCached_impl(temp)) != DEVICE_OK) { return ret; }
+                Assign(*pprop, temp);
+                if (temp != oldv)
+                    return notifyChange(temp);
+            } else if (!isReadOnly_ && action == MM::AfterSet) {
+                PropT temp, oldv = cachedValue_;
+                Assign(temp, *pprop);
+                if ((ret = set_impl(temp)) != DEVICE_OK)
+                    return ret;
+                if (temp != oldv)
+                    return notifyChange(temp);
+            } else if (eAct == MM::IsSequenceable) {
+                if (!isSequencable_) {
+                    // SetSequencable(0) indicates that the property cannot be sequenced
+                    pprop->SetSequenceable(0);
+                } else {
+                    size_t max_size;
+                    return client_->call<size_t, ExT...>(method(opcode).c_str(), size, args...);
+                    if ((ret = client_->call<size_t, ExT...>(method('^').c_str(), size)) != DEVICE_OK)
+                        max_size = 0;
+                    pprop->SetSequenceable(maxSize);
                 }
-                return notifyChange(temp);
-            } else if (isSequencable_ && eAct == MM::IsSequenceable) {
-                hprot::prot_size_t maxSize;
-                if ((result = getRemoteSequenceSize_impl(maxSize)) != DEVICE_OK) {
-                    return result;
+            } else if (isSequencable_ && eAct == MM::AfterLoadSequence) {
+                // send the sequence to the device
+                std::vector<std::string> sequence = pprop->GetSequence();
+                int seqsize                        = sequence.size();
+                size_t remotesize;
+                if ((ret = client_->notify(method('0').c_str()) ) != DEVICE_OK)
+                    return ret;
+                for (int i = 0; i < seqsize; i++) {
+                    // add the value
+                    LocalT localv   = Parse<LocalT>(sequence[i]);
+                    RemoteT remotev = to_remote(localv);
+                    if ((ret = client_->notify<RemoteT>(method('+').c_str(), remotev) != DEVICE_OK)
+                        return ret;
+                    remote_set_notify_impl('+',)
+                    if ((i + 1) % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || (i + 1) == seqsize) {
+                        // verify the current size
+                        if ((ret = client_->call<size_t>(method('#').c_str(), remotesize)) != ERROR_OK)
+                            return ret;
+                        if (remotesize != i)
+                            return ERR_WRITE_FAILED;
+                    }
                 }
-                // maxSize will be zero if there was no setSeqCommand
-                // or an error occurred. SetSequencable(0) indicates
-                // that the property cannot be sequenced
-                pProp->SetSequenceable(maxSize);
-            } else if (cmds_.cmdSetSeq() && eAct == MM::AfterLoadSequence) {
-                std::vector<std::string> sequence = pProp->GetSequence();
-                if ((result = setRemoteSequence_impl(sequence)) != DEVICE_OK) {
-                    return result;
-                }
-            } else if (cmds_.cmdSetSeq() && eAct == MM::StartSequence) {
-                if ((result = startRemoteSequence_impl()) != DEVICE_OK) {
-                    return result;
-                }
+            } else if (isSequencable_ && eAct == MM::StartSequence) {
+                if ((ret = client_->call(method('*').c_str()) != DEVICE_OK)
+                    return ret;
             } else if (cmds_.cmdSetSeq() && eAct == MM::StopSequence) {
-                if ((result = stopRemoteSequence_impl()) != DEVICE_OK) {
-                    return result;
-                }
+                if ((ret = client_->call(method('~').c_str()) != DEVICE_OK)
+                    return ret;
             }
             return DEVICE_OK;
         }
 
-        /**	Link the property to the device through the stream and initialize from the propInfo.
-	    * **THIS IS THE PRIMARY ENTRY POINT for creating remote properties.**
-		*/
-        int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo) {
-            client_ = client;
 
-            MM::ActionFunctor* action = new ActionT(this, &RemoteProp_Base<DeviceT, LocalT>::OnExecute);
-
-            bool useInitialValue = false;
-            try {
-                ASSERT_TRUE(propInfo.brief() != nullptr && !propInfo.brief().empty()), ERROR_JSON_METHOD_NOT_FOUND);
-                // set the property on the remote device if possible
-                LocalT val;
-                ASSERT_OK(client_->call<RetT<LocalT>>(method('?').c_str(), val));
-                ASSERT_OK(BaseT::createAndLinkProp(device, propInfo, action, propInfo.isReadOnly(), useInitialValue));
-                BaseT::cachedValue_ = val;
-                return DEVICE_OK;
-            } catch (DeviceResultException e) {
-                // Create an "ERROR" property if assert was turned off during compile.
-                device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
-                return DEVICE_INVALID_PROPERTY;
-            }
-        }
     };
 
     /////////////////////////////////////////////////////////////////////////////
@@ -351,7 +328,7 @@ namespace rdl {
 		gets or sets the value from the device.
 	*/
     template <typename LocalT, class DeviceT, class HubT>
-    class RemoteProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
+    class SimpleRemoteProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
         typedef hprot::DeviceHexProtocol<HubT> ProtoT;
 
      public:

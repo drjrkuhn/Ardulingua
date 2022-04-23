@@ -77,20 +77,21 @@ namespace rdl {
                 PropT temp;
                 // GET the property from the device. In our case a locally
                 // cached value
-                if ((ret = getCached_impl(temp)) != DEVICE_OK) { return ret; }
+                if ((ret = getCached_impl(temp)) != DEVICE_OK)
+                    return ret;
                 // Set the property storage value to the one we GOT
                 Assign(*pprop, temp);
             } else if (!isReadOnly_ && action == MM::AfterSet) {
-                PropT temp;
+                PropT temp, oldv = cachedValue_;
                 // Get the property storage value that was just
                 // set by the GUI or Core
                 Assign(temp, *pprop);
                 // SET the property to the device. In our case a locally
                 // cached value
-                if ((ret = set_impl(temp)) != DEVICE_OK) {
+                if ((ret = set_impl(temp)) != DEVICE_OK)
                     return ret;
-                }
-                return notifyChange(temp);
+                if (temp != oldv)
+                    return notifyChange(temp);
             }
             // Note that attempting to set a read-only property does
             // not generate an error by convention

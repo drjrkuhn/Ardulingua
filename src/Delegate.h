@@ -78,8 +78,19 @@ namespace rdl {
             return (*reinterpret_cast<FunctionT>(fnstub_))(object_, arg...);
         }
 
+        template <typename RTYPE, typename TUPLE>
+        inline RTYPE call(TUPLE& args) const {
+            return call_tuple_impl<RTYPE>(args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+        }
+
      protected:
         delegate(void* object, FnStubT fnstub) : delegate_base(object, fnstub) {}
+
+        template <typename RTYPE, typename TUPLE, size_t... I>
+        inline RTYPE call_tuple_impl(TUPLE& args, std::index_sequence<I...>) const {
+            return call<RTYPE>(std::get<I>(args)...);
+        }
+
 
      public:
         /************************************************************************

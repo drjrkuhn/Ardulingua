@@ -355,7 +355,8 @@ namespace rdl {
                 mapit = dispatch_map_.find(method);
                 err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
                 if (err != ERROR_OK) break;
-                err = mapit->second.call(args, result);
+                json_delegate jdelegate = mapit->second;
+                err = jdelegate.call(args, result);
                 break;
             }
             if (id >= 0) { // server wants reply
@@ -406,7 +407,7 @@ namespace rdl {
             size_t msgsize;
             while (tries-- > 0) {
                 int msg_id = nextid_++;
-                last_err   = notify_impl<PARAMS...>(method, msg_id, args...);
+                last_err   = call_impl<PARAMS...>(method, msg_id, args...);
                 // get reply
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
@@ -428,7 +429,7 @@ namespace rdl {
             size_t msgsize;
             while (tries-- > 0) {
                 int msg_id = static_cast<int>(nextid_++);
-                last_err   = notify_impl<PARAMS...>(method, msg_id, args...);
+                last_err   = call_impl<PARAMS...>(method, msg_id, args...);
                 // get reply
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
@@ -445,12 +446,12 @@ namespace rdl {
 
         template <typename... PARAMS>
         int notify(const char* method, PARAMS... args) {
-            return notify_impl(method, -1, args...);
+            return call_impl(method, -1, args...);
         }
 
      protected:
         template <typename... PARAMS>
-        int notify_impl(const char* method, int msg_id, PARAMS... args) {
+        int call_impl(const char* method, int msg_id, PARAMS... args) {
             int last_err = ERROR_OK;
             size_t msgsize;
             StaticJsonDocument<svc::JDOC_SIZE> msg;

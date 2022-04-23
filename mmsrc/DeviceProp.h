@@ -136,6 +136,7 @@ namespace rdl {
             brief_           = checkedInfo.brief();
             isReadOnly_      = checkedInfo.isReadOnly();
             isSequencable_   = checkedInfo.isSequencable();
+            isVolatile_      = checkedInfo.isVolatile();
 
             if (checkedInfo.hasInitialValue()) {
                 cachedValue_ = checkedInfo.initialValue();
@@ -168,6 +169,7 @@ namespace rdl {
               cachedValue_(),
               isReadOnly_(false),
               isSequencable_(false),
+              isVolatile_(false),
               notifyChangeFunc_(nullptr) {}
 
         DeviceT* device_;
@@ -176,6 +178,7 @@ namespace rdl {
         PropT cachedValue_;
         bool isReadOnly_;
         bool isSequencable_;
+        bool isVolatile_;
         NotifyChangeFnT notifyChangeFunc_;
 
     #if 0

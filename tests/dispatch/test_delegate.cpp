@@ -4,6 +4,7 @@
 
 #include <Delegate.h>
 #include <string>
+#include <tuple>
 
 /**************************************************************************************
  * INCLUDE/MAIN
@@ -34,17 +35,23 @@ struct C {
 TEST_CASE("delegate basic function", "[delegate-01]") {
 
     WHEN("functions returning int") {
-        auto d_ifv = delegate::of<RetT<int>>::create<ifv>();
+        delegate d_ifv = delegate::of<RetT<int>>::create<ifv>();
         REQUIRE(d_ifv.call<RetT<int>>() == 100);
         REQUIRE(d_ifv.as<RetT<int>>()() == 100);
 
-        auto d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
+        delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
         REQUIRE(d_ifi.call<RetT<int>, int>(50) == 100);
         REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 50);
 
-        auto d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
+        delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
         REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
         REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
+
+        using TupleII = std::tuple<int,int>;
+        TupleII argii = std::make_tuple(90,10);
+        int res = d_ifii.call<RetT<int>, TupleII>(argii);
+        REQUIRE(res == 100);
+
     }
     WHEN("class set/get int") {
         C a(10);

@@ -77,7 +77,7 @@ namespace rdl {
             return *this;
         }
 
-        /** DEFAULT This isn't a pre-init property. */
+        /** __DEFAULT__ This isn't a pre-init property. */
         PropInfo& notPreInit() {
             isPreInit_ = false;
             return *this;
@@ -101,9 +101,21 @@ namespace rdl {
             return *this;
         }
 
-        /** DEFAULT The property can be read and written. */
+        /** __DEFAULT__ The property can be read and written. */
         PropInfo& notReadOnly() {
             isReadOnly_ = false;
+            return *this;
+        }
+
+        /** This property is volatile (not cached). */
+        PropInfo& volatile() {
+            isVolatile_ = true;
+            return *this;
+        }
+
+        /** __DEFAULT__ This property is volatile (not cached). */
+        PropInfo& notVolatile() {
+            isVolatile_ = false;
             return *this;
         }
 
@@ -128,14 +140,18 @@ namespace rdl {
         /**  Was an initial value specified? */
         bool hasInitialValue() const { return hasInitialValue_; }
 
-        /** Was this specified as a pre-init property? */
+        /** Was this a pre-init property? */
         bool isPreInit() const { return isPreInit_; }
 
-        /** Was this specified as a read-only property? */
+        /** Was this a read-only property? */
         bool isReadOnly() const { return isReadOnly_; }
 
-        /** Was this specified as a sequencable property? */
+        /** Was this a sequencable property? */
         bool isSequencable() const { return isSequencable_; }
+
+        /** Was this a voilatile property? */
+        bool isVolatile() const { return isVolatile_; }
+
 
         /** Has the withLimits() been added? */
         bool hasLimits() const { return hasLimits_; }
@@ -160,6 +176,7 @@ namespace rdl {
             os << " .isPreInit=" << std::boolalpha << p.isPreInit_;
             os << " .isReadOnly=" << std::boolalpha << p.isReadOnly_;
             os << " .isSequencable=" << std::boolalpha << p.isSequencable_;
+            os << " .isVolatile=" << std::boolalpha << p.isVolatile_;
             os << " .hasLimits=" << std::boolalpha << p.hasLimits;
             os << " .minValue=" << p.minValue_;
             os << " .maxValue=" << p.maxValue_;
@@ -181,6 +198,7 @@ namespace rdl {
         bool isPreInit_       = false;
         bool isReadOnly_      = false;
         bool isSequencable_   = false;
+        bool isVolatile_      = false;
         bool hasLimits_       = false;
         double minValue_      = 0;
         double maxValue_      = 0;
