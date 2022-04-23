@@ -7,7 +7,7 @@
 
 namespace rdl {
 
-/* Think of the the Properties as simple storage containers
+    /* Think of the the Properties as simple storage containers
 * The BeforeGet action occurs before the Device Adapter's 
 *  client views the property and should query the hardware 
 *  if necessary, AfterSet occurs after the client has specified 
@@ -16,28 +16,28 @@ namespace rdl {
 *  (( 'pProp->Get' might better be thought of as 'pProp->Retrieve' 
 *  and  'pProp->Set' might better be thought of as 'pProp->Store'))   
 */
-//int YourLaserController::OnPowerSetpoint(MM::PropertyBase* pProp, MM::ActionType eAct) {
-//    double powerSetpoint;
-//    if (eAct == MM::BeforeGet) {
-//        // retrieve the current setpoint from the controller
-//        GetPowerSetpoint(powerSetpoint);
-//        // put the retrieved value into the Property storage
-//        pProp->Set(powerSetpoint);
-//    } else if (eAct == MM::AfterSet) {
-//        // retrieve the requested value from the Property storage
-//        pProp->Get(powerSetpoint);
-//        double achievedSetpoint;
-//        // set the value to the controller, retrieve the realized (quantized) value from the controller
-//        SetPowerSetpoint(powerSetpoint, achievedSetpoint);
-//        if (0. != powerSetpoint) {
-//            double fractionError = fabs(achievedSetpoint - powerSetpoint) / powerSetpoint;
-//            if ((0.05 < fractionError) && (fractionError < 0.10))
-//                // reflect the quantized value back to the client
-//                pProp->Set(achievedSetpoint);
-//        }
-//    }
-//    return DEVICE_OK;
-//}
+    //int YourLaserController::OnPowerSetpoint(MM::PropertyBase* pProp, MM::ActionType eAct) {
+    //    double powerSetpoint;
+    //    if (eAct == MM::BeforeGet) {
+    //        // retrieve the current setpoint from the controller
+    //        GetPowerSetpoint(powerSetpoint);
+    //        // put the retrieved value into the Property storage
+    //        pProp->Set(powerSetpoint);
+    //    } else if (eAct == MM::AfterSet) {
+    //        // retrieve the requested value from the Property storage
+    //        pProp->Get(powerSetpoint);
+    //        double achievedSetpoint;
+    //        // set the value to the controller, retrieve the realized (quantized) value from the controller
+    //        SetPowerSetpoint(powerSetpoint, achievedSetpoint);
+    //        if (0. != powerSetpoint) {
+    //            double fractionError = fabs(achievedSetpoint - powerSetpoint) / powerSetpoint;
+    //            if ((0.05 < fractionError) && (fractionError < 0.10))
+    //                // reflect the quantized value back to the client
+    //                pProp->Set(achievedSetpoint);
+    //        }
+    //    }
+    //    return DEVICE_OK;
+    //}
 
     /*******************************************************************
      * LocalProp_Base
@@ -63,10 +63,9 @@ namespace rdl {
         LocalProp_Base() = default;
 
         /*	Link the property to the device and initialize from the propInfo.	*/
-        virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo, bool readOnly = false, bool usePropInfoInitialValue = true) {
+        virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
             MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<DeviceT, PropT>::OnExecute);
-            readOnly_               = readOnly;
-            return createAndLinkProp(device, propInfo, pAct, readOnly, usePropInfoInitialValue);
+            return createAndLinkProp(device, propInfo, pAct);
         }
 
         /** Called by the properties update method */
@@ -80,7 +79,7 @@ namespace rdl {
                 if ((ret = getCached_impl(temp)) != DEVICE_OK) { return ret; }
                 // Set the property storage value to the one we GOT
                 Assign(*pprop, temp);
-            } else if (!readOnly_ && action == MM::AfterSet) {
+            } else if (!isReadOnly_ && action == MM::AfterSet) {
                 PropT temp;
                 // Get the property storage value that was just
                 // set by the GUI or Core
@@ -115,7 +114,7 @@ namespace rdl {
         }
 
      protected:
-        using BaseT::readOnly_;
+        using BaseT::isReadOnly_;
         using BaseT::cachedValue_;
     };
 
@@ -138,25 +137,29 @@ namespace rdl {
 
      public:
         /** A local read/write property that will be initialized from the PropInfo initialValue. */
-        LocalProp() : LocalProp(false, true) {}
+        LocalProp() : initFromCache_(false) {}
 
         /** A local read/write property that will be initialized with the given initialValue.
          * This value overrides the PropInfo initialValue. */
-        LocalProp(const PropT& initialValue) : LocalProp(false, false) {}
+        LocalProp(const PropT& initialValue) : cachedValue_(initialValue), initFromCache_(true) {}
 
-        /** Create a local property from a given PropInfo builder */
-        int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
-            return BaseT::create(device, propInfo, readOnly_, initFromPropInfo_);
-        }
+        using BaseT::create;
+        ///** Create a local property from a given PropInfo builder */
+        //int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
+        //    return BaseT::create(device, propInfo);
+        //}
 
      protected:
-        LocalProp(bool readOnly, bool initFromPropInfo)
-            : initFromPropInfo_(initFromPropInfo) {
-            readOnly_ = readOnly;
+        virtual PropInfo<PropT> checkPropInfo(const PropInfo<PropT>& propInfo) override {
+            PropInfo<PropT> checked = propInfo;
+            if (initFromCache_) {
+                checked.witoutInitialValue();
+             }
+            return checked;
         }
 
-        using BaseT::readOnly_;
-        bool initFromPropInfo_;
+        using BaseT::cachedValue_;
+        bool initFromCache_;
     };
 
     /*******************************************************************
@@ -178,27 +181,17 @@ namespace rdl {
 
      public:
         /** A local read-only property that will be initialized from the PropInfo initialValue. */
-        LocalReadOnlyProp() : LocalProp(true, true) {}
+        LocalReadOnlyProp() : LocalProp() {}
 
         /** A local read-only property that will be initialized with the given initialValue.
         This value overrides the PropInfo initialValue. */
-        LocalReadOnlyProp(const PropT& initialValue) : LocalProp(true, false) {
-            setCachedValue(initialValue);
-        }
-
-        /** Set the cached value of a read-only property. If the property was not yet created through
-        create, then this value overrides the PropInfo initialValue. */
-        int setCached(const PropT& value) {
-            initFromPropInfo_ = false;
-            int ret;
-            if ((ret = setValue(value)) != DEVICE_OK) {
-                return ret;
-            }
-            return notifyChange(value);
-        }
+        LocalReadOnlyProp(const PropT& initialValue) : LocalProp(initialValue) {}
 
      protected:
-        using BaseT::initFromPropInfo_;
+        virtual PropInfo<PropT> checkPropInfo(const PropInfo<PropT>& propInfo) override {
+            PropInfo<PropT> checked = propInfo.notReadOnly();
+            return LocalProp::checkPropInfo(checked);
+        }
     };
 
 }; // namespace rdl

@@ -139,16 +139,16 @@
      ***********************************************************************/
 namespace rdl {
 
-    enum struct codes : char {
-        get      = '?',
-        set      = '!',
-        act      = '*',
-        notify   = '>',
-        max_size = '^',
-        size     = '#',
-        clear    = '0',
-        add      = '+'
-    };
+    //enum struct codes : char {
+    //    get      = '?',
+    //    set      = '!',
+    //    act      = '*',
+    //    notify   = '>',
+    //    max_size = '^',
+    //    size     = '#',
+    //    clear    = '0',
+    //    add      = '+'
+    //};
 
     /** Throw an error during createRemoteProp_impl on bad communication at creation? */
     const bool CREATE_FAILS_IF_ERR_COMMUNICATION = false;
@@ -190,9 +190,9 @@ namespace rdl {
             //    useInitialValue = true;
             //}
             try {
-                ASSERT_TRUE(propInfo.briefName() != nullptr || !propInfo.briefName().empty()), ERROR_JSON_METHOD_NOT_FOUND);
+                ASSERT_TRUE(propInfo.brief() != nullptr || !propInfo.brief().empty()), ERROR_JSON_METHOD_NOT_FOUND);
                 // set the property on the remote device if possible
-                std::string method = "?" + BaseT::briefName_;
+                std::string method = "?" + BaseT::brief_;
                 PropT val;
                 ASSERT_OK(client_->call<RetT<PropT>>(method.c_str(), val));
                 ASSERT_OK(BaseT::createAndLinkProp(device, propInfo, action, propInfo.isReadOnly(), useInitialValue));
@@ -206,8 +206,8 @@ namespace rdl {
         }
 
         /** Sets the Remote Device Property, which updates the getCachedValue */
-        virtual int set(const PropT value) {
-            int ret = set_delegate.call<RetT<int>,std::string,PropT)(methodName(codes::set), value);
+        virtual int set_impl(const PropT value) {
+            int ret = set_delegate.call<RetT<int>,std::string,PropT)(method_name('!'), value);
             if (ret != DEVICE_OK) 
                 return ret;
             cachedValue_ = value;
@@ -216,7 +216,7 @@ namespace rdl {
 
         /** Get the device property directly */
         virtual int get(PropT& value) const {
-            int ret = set_delegate.call<RetT<int>,std::string,PropT&)(methodName(codes::set), value);
+            int ret = set_delegate.call<RetT<int>,std::string,PropT&)(method_name('?'), value);
             if (ret != DEVICE_OK) 
                 return ret;
             cachedValue_ = value;
@@ -326,14 +326,14 @@ namespace rdl {
                 if ((ret = get(temp)) != DEVICE_OK) { return ret; }
                 cachedValue_ = temp;
                 Assign(*pprop, temp);
-            } else if (!readOnly_ && eAct == MM::AfterSet) {
+            } else if (!isReadOnly && eAct == MM::AfterSet) {
                 PropT temp;
                 Assign(temp, *pprop);
                 if ((ret = set(temp)) != DEVICE_OK) {
                     return ret;
                 }
                 return notifyChange(temp);
-            } else if (sequencable_ && eAct == MM::IsSequenceable) {
+            } else if (isSequencable_ && eAct == MM::IsSequenceable) {
                 hprot::prot_size_t maxSize;
                 if ((result = getRemoteSequenceSize_impl(maxSize)) != DEVICE_OK) {
                     return result;
