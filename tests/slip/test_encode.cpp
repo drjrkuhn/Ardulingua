@@ -14,9 +14,9 @@
 #include <catch.hpp>
 
 using namespace rdl;
-using test_encoder = encoder_hr;
+using test_encoder = slip_encoder_hr;
 
-TEST_CASE("encode_hr large buffer", "[encoder_hr-01]") {
+TEST_CASE("encode_hr large buffer", "[slip_encoder_hr-01]") {
     size_t ec_size;
     std::string srcstr;
     const char* src;
@@ -26,71 +26,71 @@ TEST_CASE("encode_hr large buffer", "[encoder_hr-01]") {
     WHEN("empty input") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("");
+        srcstr = recode<slip_encoder_hr, test_encoder>("");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == srcstr.length());
         REQUIRE(1 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(1 == (ec_size = test_encoder::encode(buf, bsize, "", 0)));
-        REQUIRE("#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 
     WHEN("no specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("Lorus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(5 == srcstr.length());
         REQUIRE(6 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(6 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 
     WHEN("consecutive specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("Lo^#rus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lo^#rus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(7 == srcstr.length());
         REQUIRE(10 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(10 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lo^[^Drus#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lo^[^Drus#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 
     WHEN("ESC at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(8 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(8 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^[#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^[#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 
     WHEN("END at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("Lorus#");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(8 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(8 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^D#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^D#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 
     WHEN("consecutive specials at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^##");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^##");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(12 == test_encoder::encoded_size(src, srcstr.length()));
         REQUIRE(12 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^[^D^D#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^[^D^D#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
     }
 }
 
-TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
+TEST_CASE("encode_hr exact buffer", "[slip_encoder_hr-02]") {
     size_t ec_size;
     std::string srcstr;
     const char* src;
@@ -102,11 +102,11 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 1;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("");
+        srcstr = recode<slip_encoder_hr, test_encoder>("");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == srcstr.length());
         REQUIRE(1 == (ec_size = test_encoder::encode(buf, bsize, "", 0)));
-        REQUIRE("#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -114,11 +114,11 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 6;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(5 == srcstr.length());
         REQUIRE(6 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -126,11 +126,11 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 10;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lo^#rus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lo^#rus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(7 == srcstr.length());
         REQUIRE(10 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lo^[^Drus#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lo^[^Drus#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -138,11 +138,11 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 8;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(8 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^[#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^[#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -150,11 +150,11 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 8;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus#");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(8 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^D#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^D#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -162,16 +162,16 @@ TEST_CASE("encode_hr exact buffer", "[encoder_hr-02]") {
         const size_t bsize = 12;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^##");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^##");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(12 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^[^D^D#" == recode<test_encoder, encoder_hr>(buf, ec_size));
+        REQUIRE("Lorus^[^D^D#" == recode<test_encoder, slip_encoder_hr>(buf, ec_size));
         REQUIRE('!' == buf[bsize]);
     }
 }
 
-TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
+TEST_CASE("encode_hr buffer overrun", "[slip_encoder_hr-03]") {
     size_t ec_size;
     std::string srcstr;
     const char* src;
@@ -183,7 +183,7 @@ TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
         const size_t bsize = 5;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
         REQUIRE('!' == buf[bsize]);
@@ -193,7 +193,7 @@ TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
         const size_t bsize = 9;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lo^#rus");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lo^#rus");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
         REQUIRE('!' == buf[bsize]);
@@ -203,7 +203,7 @@ TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
         const size_t bsize = 7;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
         REQUIRE('!' == buf[bsize]);
@@ -213,7 +213,7 @@ TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
         const size_t bsize = 7;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus#");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
         REQUIRE('!' == buf[bsize]);
@@ -223,18 +223,18 @@ TEST_CASE("encode_hr buffer overrun", "[encoder_hr-03]") {
         const size_t bsize = 11;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<encoder_hr, test_encoder>("Lorus^##");
+        srcstr = recode<slip_encoder_hr, test_encoder>("Lorus^##");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == (ec_size = test_encoder::encode(buf, bsize, src, srcstr.length())));
         REQUIRE('!' == buf[bsize]);
     }
 }
 
-TEST_CASE("encode_hr bad inputs", "[encoder_hr-04]") {
+TEST_CASE("encode_hr bad inputs", "[slip_encoder_hr-04]") {
     const size_t bsize = 20;
     char buf[bsize];
     size_t ec_size;
-    std::string srcstr = recode<decoder_hr, test_encoder>("Lorus");
+    std::string srcstr = recode<slip_decoder_hr, test_encoder>("Lorus");
     const char* src    = srcstr.c_str();
 
     WHEN("NULL buffer") {

@@ -164,28 +164,28 @@ namespace rdl {
 
     /** assign MM::Property from mm integral */
     template <typename T, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
-    inline bool Assign(MM::PropertyBase& prop, const T& value) {
+    inline int Assign(MM::PropertyBase& prop, const T& value) {
         long temp = static_cast<long>(value);
-        return prop.Set(temp);
+        return prop.Set(temp) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /** assign MM::Property from mm floating point */
     template <typename T, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
-    inline bool Assign(MM::PropertyBase& prop, const T& value) {
+    inline int Assign(MM::PropertyBase& prop, const T& value) {
         double temp = static_cast<double>(value);
-        return prop.Set(temp);
+        return prop.Set(temp) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /** assign MM::Property from mm string */
     template <typename T, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
-    inline bool Assign(MM::PropertyBase& prop, const T& value) {
-        return prop.Set(value.c_str());
+    inline int Assign(MM::PropertyBase& prop, const T& value) {
+        return prop.Set(value.c_str()) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /** assign MM::Property from const char* */
     template <typename T, typename std::enable_if<is_mm_c_str<T>::value, bool>::type = true>
-    inline bool Assign(MM::PropertyBase& prop, const T value) {
-        return prop.Set(value);
+    inline int Assign(MM::PropertyBase& prop, const T value) {
+        return prop.Set(value) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /*******************************************************************
@@ -194,26 +194,28 @@ namespace rdl {
 
     /** assign mm integral from MM::Property */
     template <typename T, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
-    inline bool Assign(T& value, const MM::PropertyBase& prop) {
+    inline int Assign(T& value, const MM::PropertyBase& prop) {
         long temp;
-        bool ret = prop.Get(temp);
+        if (!prop.Get(temp))
+            return DEVICE_INVALID_PROPERTY_VALUE;
         value    = static_cast<T>(temp);
-        return ret;
+        return DEVICE_OK;
     }
 
     /** assign mm floating point from MM::Property */
     template <typename T, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
-    inline bool Assign(T& value, const MM::PropertyBase& prop) {
-        double temp;
-        bool ret = prop.Get(temp);
-        value    = static_cast<T>(temp);
-        return ret;
+    inline int Assign(T& value, const MM::PropertyBase& prop) {
+        long temp;
+        if (!prop.Get(temp))
+            return DEVICE_INVALID_PROPERTY_VALUE;
+        value = static_cast<T>(temp);
+        return DEVICE_OK;
     }
 
     /** assign mm string from MM::Property */
     template <typename T, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
-    inline bool Assign(T& value, const MM::PropertyBase& prop) {
-        return prop.Get(value);
+    inline int Assign(T& value, const MM::PropertyBase& prop) {
+        return prop.Get(value) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /*******************************************************************
@@ -229,7 +231,7 @@ namespace rdl {
 	*/
     template <typename T, class DEV, typename std::enable_if<is_mm_rvalue<T>::value, bool>::type = true>
     inline int Assign(DEV* device, const char* propName, const T& value) {
-        return device->SetProperty(propName, ToString<T>(value).c_str());
+        return device->SetProperty(propName, ToString<T>(value).c_str()) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
     /*******************************************************************

@@ -98,3 +98,23 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
         REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
     }
 }
+
+TEST_CASE("delegate conversion", "[delegate-02]") {
+
+    WHEN("functions returning int") {
+        delegate temp = delegate::of<RetT<int>>::create<ifv>();
+        auto f_ifv = temp.as<RetT<int>>();
+        REQUIRE(f_ifv() == 100);
+        REQUIRE(f_ifv.stub().call<RetT<int>>() == 100);
+
+        temp = delegate::of<RetT<int>, int>::create<ifi>();
+        auto f_ifi = temp.as<RetT<int>,int>();
+        REQUIRE(f_ifi(50) == 100);
+        REQUIRE(f_ifi.stub().call<RetT<int>, int>(50) == 100);
+
+        temp = delegate::of<RetT<int>, int, int>::create<ifii>();
+        auto f_ifii = temp.as<RetT<int>, int, int>();
+        REQUIRE(f_ifii(10, 20) == 30);
+        REQUIRE(f_ifii.stub().call<RetT<int>, int, int>(80, 20) == 100);
+    }
+}

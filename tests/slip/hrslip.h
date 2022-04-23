@@ -10,11 +10,11 @@
     #define __HRSLIP_H__
 
 namespace rdl {
-    typedef rdl::encoder_base<char, '#', 'D', '^', '['> encoder_hr;
-    typedef rdl::decoder_base<char, '#', 'D', '^', '['> decoder_hr;
+    typedef rdl::svc::encoder_base<char, '#', 'D', '^', '['> slip_encoder_hr;
+    typedef rdl::svc::decoder_base<char, '#', 'D', '^', '['> slip_decoder_hr;
 
-    typedef rdl::encoder_base<char, '#', 'D', '^', '[', '0', '@'> encoder_hrnull;
-    typedef rdl::decoder_base<char, '#', 'D', '^', '[', '0', '@'> decoder_hrnull;
+    typedef rdl::svc::encoder_base<char, '#', 'D', '^', '[', '0', '@'> slip_encoder_hrnull;
+    typedef rdl::svc::decoder_base<char, '#', 'D', '^', '[', '0', '@'> slip_decoder_hrnull;
 
     template <class FROM, class TO>
     std::string recode(const std::string& src) {

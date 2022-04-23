@@ -38,9 +38,7 @@ namespace rdl {
         typedef int (DeviceT::*NotifyChangeFnT)(const char* propName, const char* propValue);
 
         /** Add a callback method to the property */
-        void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) {
-            notifyChangeFunc_ = notifyChangeFunc;
-        }
+        void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
 
         /** Get the property name */
         const std::string name() const { return name_; }
@@ -56,12 +54,11 @@ namespace rdl {
 
         /**
          * Set both the internal property value and the property store value directly.
-         * 
-         * > NOTE: This method does NOT check the read-only flag of the property!
-         * > The read-only flag is meant primarily to prevent the GUI/user from
-         * > changing properties. The driver itself might need to update a read-only
-         * > status property. This method allows drivers to update a read-only
-         * > property behind the scenes.
+         *   > NOTE: This method does NOT check the read-only flag of the property!
+         *   > The read-only flag is meant primarily to prevent the GUI/user from
+         *   > changing properties. The driver itself might need to update a read-only
+         *   > status property. This method allows drivers to update a read-only
+         *   > property behind the scenes.
          */
         virtual int SetProperty(const PropT value) {
             int ret;
@@ -75,24 +72,16 @@ namespace rdl {
         }
 
         /** Get the internal property value directly (NOT the property store value). */
-        virtual int GetProperty(PropT& value) const {
-            return get_impl(value);
-        }
+        virtual int GetProperty(PropT& value) const { return get_impl(value); }
 
         /** Get the locally cached property value directly (NOT the property store value). */
-        virtual int GetCachedProperty(PropT& value) const {
-            return getCached_impl(value);
-        }
+        virtual int GetCachedProperty(PropT& value) const { return getCached_impl(value); }
 
         /**
          * Get the Device that owns the property (hub or sub-device).
          * The owner device does the actual setting and getting of property values!
          */
         DeviceT* owner() const { return device_; }
-
-        std::string method_brief(const char opcode) {
-            return std::string(1, opcode).append(brief_);
-        }
 
      protected:
         /** Called by the properties update method. Subclasses must override. */
@@ -120,9 +109,13 @@ namespace rdl {
          */
         virtual int getCached_impl(PropT& value) const = 0;
 
-        virtual int notifyChange(const PropT& val) {
+        /**
+         * Notify callback of change in value.
+         * TODO: convert to a vector of listeners
+         */
+        virtual int notifyChange(const PropT& value) {
             if (notifyChangeFunc_) {
-                return (device_->*notifyChangeFunc_)(name_.c_str(), ToString(val).c_str());
+                return (device_->*notifyChangeFunc_)(name_.c_str(), ToString(value).c_str());
             }
             return DEVICE_OK;
         }
@@ -230,7 +223,7 @@ namespace rdl {
          *
          * ### THIS IS THE MAIN PROPERTY CREATION ENTRY POINT
          *
-         * The initial val is given as a parameter.
+         * The initial value is given as a parameter.
          */
         template <typename PropT, class DeviceT>
         static inline int createMMPropOnDevice(DeviceT* device,

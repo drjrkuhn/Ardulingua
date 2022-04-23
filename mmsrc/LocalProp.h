@@ -56,17 +56,18 @@ namespace rdl {
      */
     template <class DeviceT, typename PropT>
     class LocalProp_Base : public DeviceProp_Base<DeviceT, PropT> {
+     public:
+        /*	Link the property to the device and initialize from the propInfo. */
+        virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
+            MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<DeviceT, PropT>::OnExecute);
+            return createAndLinkProp(device, propInfo, pAct);
+        }
+
      protected:
         using BaseT   = DeviceProp_Base<DeviceT, PropT>;
         using ActionT = MM::Action<LocalProp_Base<DeviceT, PropT>>;
 
         LocalProp_Base() = default;
-
-        /*	Link the property to the device and initialize from the propInfo.	*/
-        virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
-            MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<DeviceT, PropT>::OnExecute);
-            return createAndLinkProp(device, propInfo, pAct);
-        }
 
         /** Called by the properties update method */
         virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
@@ -143,11 +144,8 @@ namespace rdl {
          * This value overrides the PropInfo initialValue. */
         LocalProp(const PropT& initialValue) : cachedValue_(initialValue), initFromCache_(true) {}
 
-        using BaseT::create;
-        ///** Create a local property from a given PropInfo builder */
-        //int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
-        //    return BaseT::create(device, propInfo);
-        //}
+        //// make public
+        //using BaseT::create;
 
      protected:
         virtual PropInfo<PropT> checkPropInfo(const PropInfo<PropT>& propInfo) override {

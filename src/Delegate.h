@@ -90,7 +90,9 @@ namespace rdl {
          public:
             // no default constructor
             of() = delete;
-            of(delegate_base* pstub) : pstub_(pstub) {}
+            of(delegate* pstub) : pstub_(pstub) {}
+
+            const delegate& stub() const { return *pstub_; }
 
             bool operator==(const of& other) const { return pstub_ == other.pstub_; }
             bool operator!=(const of& other) const { return pstub_ != other.pstub_; }
@@ -176,7 +178,7 @@ namespace rdl {
             }
 
          protected:
-            delegate_base* pstub_;
+            delegate* pstub_;
         }; // class delegate
     };     // class delegate stub
 

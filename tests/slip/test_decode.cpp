@@ -14,9 +14,9 @@
 #include <catch.hpp>
 
 using namespace rdl;
-using test_decoder = decoder_hr;
+using test_decoder = slip_decoder_hr;
 
-TEST_CASE("decoder_hr large buffer", "[decoder_hr-01]") {
+TEST_CASE("slip_decoder_hr large buffer", "[slip_decoder_hr-01]") {
     size_t dc_size;
     std::string srcstr;
     const char* src;
@@ -26,7 +26,7 @@ TEST_CASE("decoder_hr large buffer", "[decoder_hr-01]") {
     WHEN("empty input") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("");
+        srcstr = recode<slip_decoder_hr, test_decoder>("");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(0 == srcstr.length());
         REQUIRE(0 == test_decoder::decoded_size(src, srcstr.length()));
@@ -36,29 +36,29 @@ TEST_CASE("decoder_hr large buffer", "[decoder_hr-01]") {
     WHEN("single end at input") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(1 == srcstr.length());
         REQUIRE(0 == test_decoder::decoded_size(src, srcstr.length()));
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
     }
 
     WHEN("no specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lorus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(5 == test_decoder::decoded_size(src, srcstr.length()));
         REQUIRE(5 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
     }
 
     WHEN("bad encoding") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lo^_rus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lo^_rus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         // decoded_size does not detect bad encoding!
@@ -69,52 +69,52 @@ TEST_CASE("decoder_hr large buffer", "[decoder_hr-01]") {
     WHEN("consecutive specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lo^[^Drus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lo^[^Drus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(10 == srcstr.length());
         REQUIRE(7 == test_decoder::decoded_size(src, srcstr.length()));
         REQUIRE(7 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lo^#rus" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lo^#rus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
     }
 
     WHEN("ESC at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == test_decoder::decoded_size(src, srcstr.length()));
         REQUIRE(6 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus^" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
     }
 
     WHEN("END at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^D#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == test_decoder::decoded_size(src, srcstr.length()));
         // INPLACE
         dc_size = test_decoder::decode(buf, bsize, src, srcstr.length());
         REQUIRE(dc_size == 6);
-        std::string dest = recode<test_decoder, decoder_hr>(buf, dc_size);
+        std::string dest = recode<test_decoder, slip_decoder_hr>(buf, dc_size);
         REQUIRE(dest == "Lorus#");
     }
 
     WHEN("consecutive specials at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[^D^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[^D^D#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(12 == srcstr.length());
         REQUIRE(8 == test_decoder::decoded_size(src, srcstr.length()));
         REQUIRE(8 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^##" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus^##" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
     }
 }
 
-TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
+TEST_CASE("slip_decoder_hr exact buffer", "[slip_decoder_hr-02]") {
     size_t dc_size;
     std::string srcstr;
     const char* src;
@@ -126,11 +126,11 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = 1;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(1 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -138,11 +138,11 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = INPLACE ? 6 : 5;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(5 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -150,11 +150,11 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = INPLACE ? 10 : 7;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lo^[^Drus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lo^[^Drus#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(10 == srcstr.length());
         REQUIRE(7 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lo^#rus" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lo^#rus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -162,11 +162,11 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = INPLACE ? 8 : 6;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus^" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -174,11 +174,11 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = INPLACE ? 8 : 6;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^D#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus#" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus#" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 
@@ -186,16 +186,16 @@ TEST_CASE("decoder_hr exact buffer", "[decoder_hr-02]") {
         const size_t bsize = INPLACE ? 12 : 8;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[^D^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[^D^D#");
         src    = (INPLACE) ? (const char*)memcpy(buf, srcstr.c_str(), srcstr.length()) : srcstr.c_str();
         REQUIRE(12 == srcstr.length());
         REQUIRE(8 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
-        REQUIRE("Lorus^##" == recode<test_decoder, decoder_hr>(buf, dc_size));
+        REQUIRE("Lorus^##" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         REQUIRE('!' == buf[bsize]);
     }
 }
 
-TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
+TEST_CASE("slip_decoder_hr buffer overrun", "[slip_decoder_hr-02]") {
     size_t dc_size;
     std::string srcstr;
     const char* src;
@@ -207,7 +207,7 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
         const size_t bsize = 4;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus#");
         src    = srcstr.c_str();
         REQUIRE(6 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
@@ -218,7 +218,7 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
         const size_t bsize = 6;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lo^[^Drus#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lo^[^Drus#");
         src    = srcstr.c_str();
         REQUIRE(10 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
@@ -229,7 +229,7 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
         const size_t bsize = 5;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[#");
         src    = srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
@@ -240,7 +240,7 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
         const size_t bsize = 5;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^D#");
         src    = srcstr.c_str();
         REQUIRE(8 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
@@ -251,7 +251,7 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
         const size_t bsize = 7;
         char buf[MAXBUF];
         memset(buf, '!', MAXBUF);
-        srcstr = recode<decoder_hr, test_decoder>("Lorus^[^D^D#");
+        srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[^D^D#");
         src    = srcstr.c_str();
         REQUIRE(12 == srcstr.length());
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, src, srcstr.length())));
@@ -259,11 +259,11 @@ TEST_CASE("decoder_hr buffer overrun", "[decoder_hr-02]") {
     }
 }
 
-TEST_CASE("decoder_hr bad inputs", "[decoder_hr-04]") {
+TEST_CASE("slip_decoder_hr bad inputs", "[slip_decoder_hr-04]") {
     const size_t bsize = 20;
     char buf[bsize];
     size_t dc_size;
-    std::string srcstr = recode<decoder_hr, test_decoder>("Lorus");
+    std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus");
 
     bool INPLACE = GENERATE(false, true);
 
