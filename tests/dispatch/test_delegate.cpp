@@ -36,19 +36,27 @@ struct C {
 TEST_CASE("delegate basic function", "[delegate-01]") {
 
     WHEN("functions returning int") {
-        delegate d_ifv = delegate::of<RetT<int>>::create<ifv>();
-        REQUIRE(d_ifv.call<RetT<int>>() == 100);
-        REQUIRE(d_ifv.as<RetT<int>>()() == 100);
 
-        delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
-        REQUIRE(d_ifi.call<RetT<int>, int>(50) == 100);
-        REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 50);
+        delegate<int,int> bad;
+        bad(10);
 
-        delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
-        REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
-        REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
+        auto d_ifv = delegate<RetT<int>>::create<ifv>();
+        auto s_ifv = d_ifv.stub();
+        REQUIRE(d_ifv() == 100);
+        REQUIRE(s_ifv.call<RetT<int>>() == 100);
+        auto ds_ifv = as<int>(s_ifv);
+        REQUIRE(ds_ifv() == 100);
+
+        // delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
+        // REQUIRE(d_ifi.call<RetT<int>, int>(50) == 100);
+        // REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 50);
+
+        // delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
+        // REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
+        // REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
     }
 
+#if 0
     WHEN("class set/get int") {
         C a(10);
         auto da_set = delegate::of<RetT<void>, int>::create<C, &C::set>(&a);
@@ -105,8 +113,10 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
         REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
         REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
     }
+#endif
 }
 
+#if 0
 TEST_CASE("delegate conversion", "[delegate-02]") {
 
     WHEN("functions returning int") {
@@ -151,3 +161,4 @@ TEST_CASE("delegate tuple call", "[delegate-31]") {
         REQUIRE(da_get.call_tuple<RetT<int>>(std::tuple<>()) == 100);
     }
 }
+#endif

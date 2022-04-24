@@ -19,6 +19,7 @@
 
     #include "Polyfills/std_utility.h"
     #include <assert.h>
+    #include <tuple>
 
 namespace rdl {
 
@@ -31,18 +32,18 @@ namespace rdl {
     using RetT = typename Ret<R>::type;
 
     /************************************************************************
-     * Generic delegate stub with of type erased.
+     * Generic stub stub with of type erased.
      ***********************************************************************/
-    class delegate_base {
+    class stub_base {
      public:
         using FnStubT = void (*)(void* this_ptr);
 
-        delegate_base() : object_(nullptr), fnstub_(nullptr){}
+        stub_base() : object_(nullptr), fnstub_(nullptr) {}
 
-        bool operator==(const delegate_base& other) const {
+        bool operator==(const stub_base& other) const {
             return object_ == other.object_ && fnstub_ == other.fnstub_;
         }
-        bool operator!=(const delegate_base& other) const {
+        bool operator!=(const stub_base& other) const {
             return object_ != other.object_ || fnstub_ != other.fnstub_;
         }
 
@@ -50,28 +51,20 @@ namespace rdl {
         FnStubT fnstub() const { return fnstub_; }
 
      protected:
-        delegate_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
+        stub_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
 
         void* object_;
         FnStubT fnstub_;
 
-    }; // class delegate_base
+    }; // class stub_base
 
     /************************************************************************
-     * Generic delegate with of type erased.
+     * Generic stub with delegate type erased.
      ***********************************************************************/
 
-    class delegate : public delegate_base {
+    class stub : public stub_base {
      public:
-        delegate() : delegate_base() {}
-
-        template <class RTYPE, typename... PPARAMS>
-        class of;
-
-        template <typename RTYPE, typename... PARAMS>
-        of<RTYPE, PARAMS...> as() {
-            return of<RTYPE, PARAMS...>(this);
-        }
+        stub() : stub_base() {}
 
         template <typename RTYPE, typename... PARAMS>
         RTYPE call(PARAMS... arg) const {
@@ -86,8 +79,9 @@ namespace rdl {
             return call_tuple_impl<RTYPE>(args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
+        stub(void* object, FnStubT fnstub) : stub_base(object, fnstub) {}
+
      protected:
-        delegate(void* object, FnStubT fnstub) : delegate_base(object, fnstub) {}
 
         template <typename RTYPE, typename TUPLE, size_t... I>
         inline RTYPE call_tuple_impl(const TUPLE& args, std::index_sequence<I...>) const {
@@ -95,108 +89,121 @@ namespace rdl {
         }
 
      public:
-        /************************************************************************
-         * Typed delegate stubs
-         ***********************************************************************/
-        template <typename RTYPE, typename... PARAMS>
-        class of {
-         public:
-            // no default constructor
-            of() : pstub_(nullptr) {}
-            of(delegate* pstub) : pstub_(pstub) {}
+    }; // class stub
 
-            const delegate& stub() const { return *pstub_; }
+    /************************************************************************
+     * Typed stub stubs
+     ***********************************************************************/
+    template <typename RTYPE, typename... PARAMS>
+    class delegate {
+     protected:
+        stub stub_;
+        delegate(stub _stub) : stub_(_stub) {}
+        delegate(void* object, stub_base::FnStubT fnstub) : stub_(object, fnstub) {}
 
-            bool operator==(const of& other) const { return pstub_ == other.pstub_; }
-            bool operator!=(const of& other) const { return pstub_ != other.pstub_; }
+     public:
+        delegate() : delegate(nullptr, reinterpret_cast<stub::FnStubT>(error_stub)) {}
 
-            /********************************************************************
-             * FACTORIES
-             *******************************************************************/
-            template <class T, RTYPE (T::*TMethod)(PARAMS...)>
-            static delegate create(T* instance) {
-                auto mstub = method_stub<T, TMethod>;
-                delegate del(instance, reinterpret_cast<delegate::FnStubT>(mstub));
-                return del;
-            }
+        const stub& stub() const { return stub_; }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
-            static delegate create(T const* instance) {
-                auto mstub = const_method_stub<T, TMethod>;
-                delegate del(const_cast<T*>(instance), reinterpret_cast<delegate::FnStubT>(mstub));
-                return del;
-            }
+        bool operator==(const delegate& other) const { return stub_ == other.stub_; }
+        bool operator!=(const delegate& other) const { return stub_ != other.stub_; }
 
-            template <RTYPE (*TMethod)(PARAMS...)>
-            static delegate create() {
-                auto fstub = function_stub<TMethod>;
-                delegate del(nullptr, reinterpret_cast<delegate::FnStubT>(fstub));
-                return del;
-            }
+        /********************************************************************
+         * FACTORIES
+         *******************************************************************/
+        template <class T, RTYPE (T::*TMethod)(PARAMS...)>
+        static delegate create(T* instance) {
+            auto mstub = method_stub<T, TMethod>;
+            return delegate(instance, reinterpret_cast<stub::FnStubT>(mstub));
+        }
 
-            template <typename LAMBDA>
-            static delegate create(const LAMBDA& instance) {
-                auto lstub = lambda_stub<LAMBDA>;
-                delegate del((void*)(&instance), reinterpret_cast<delegate::FnStubT>(lstub));
-                return del;
-            }
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
+        static delegate create(T const* instance) {
+            auto mstub = const_method_stub<T, TMethod>;
+            return delegate(const_cast<T*>(instance), reinterpret_cast<stub::FnStubT>(mstub));
+        }
 
-            /********************************************************************
-             * CALL OPERATOR
-             *******************************************************************/
+        template <RTYPE (*TMethod)(PARAMS...)>
+        static delegate create() {
+            auto fstub = function_stub<TMethod>;
+            return delegate(nullptr, reinterpret_cast<stub::FnStubT>(fstub));
+        }
 
-            RTYPE operator()(PARAMS... arg) const {
-                assert(pstub_ != nullptr);
-                assert(pstub_->fnstub() != nullptr);
-                using FunctionT = RTYPE (*)(void*, PARAMS...);
-                FunctionT fn    = reinterpret_cast<FunctionT>(pstub_->fnstub());
-                return (*fn)(pstub_->object(), arg...);
-            }
+        template <typename LAMBDA>
+        static delegate create(const LAMBDA& instance) {
+            auto lstub = lambda_stub<LAMBDA>;
+            return delegate((void*)(&instance), reinterpret_cast<stub::FnStubT>(lstub));
+        }
 
-         protected:
-            friend delegate;
+        /********************************************************************
+         * CALL OPERATOR
+         *******************************************************************/
 
-            /********************************************************************
-             * STUB IMPLEMENTATIONS
-             * note pointer to member function in template list
-             *******************************************************************/
+        RTYPE operator()(PARAMS... arg) const {
+            assert(stub_.fnstub() != nullptr);
+            using FunctionT = RTYPE (*)(void*, PARAMS...);
+            FunctionT fn    = reinterpret_cast<FunctionT>(stub_.fnstub());
+            return (*fn)(stub_.object(), arg...);
+        }
 
-            //// class method stubs ////
+     protected:
+        friend class stub;
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...)>
-            static RTYPE method_stub(void* this_ptr, PARAMS... params) {
-                T* p = static_cast<T*>(this_ptr);
-                return (p->*TMethod)(params...);
-            }
+        static RTYPE error_stub(void* this_ptr, PARAMS... params) {
+            assert(false);
+            RTYPE ret;
+            return ret;
+        }
 
-            //// class constant method stubs ////
+        /********************************************************************
+         * STUB IMPLEMENTATIONS
+         * note pointer to member function in template list
+         *******************************************************************/
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
-            static RTYPE const_method_stub(void* this_ptr, PARAMS... params) {
-                T* const p = static_cast<T*>(this_ptr);
-                return (p->*TMethod)(params...);
-            }
+        //// class method stubs ////
 
-            //// free delegate stubs ////
+        template <class T, RTYPE (T::*TMethod)(PARAMS...)>
+        static RTYPE method_stub(void* this_ptr, PARAMS... params) {
+            T* p = static_cast<T*>(this_ptr);
+            return (p->*TMethod)(params...);
+        }
 
-            template <RTYPE (*TMethod)(PARAMS...)>
-            static RTYPE function_stub(void* this_ptr, PARAMS... params) {
-                return (TMethod)(params...);
-            }
+        //// class constant method stubs ////
 
-            //// lambda delegate stubs ////
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
+        static RTYPE const_method_stub(void* this_ptr, PARAMS... params) {
+            T* const p = static_cast<T*>(this_ptr);
+            return (p->*TMethod)(params...);
+        }
 
-            template <typename LAMBDA>
-            static RTYPE lambda_stub(void* this_ptr, PARAMS... arg) {
-                LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
-                return (p->operator())(arg...);
-            }
+        //// free stub stubs ////
 
-         protected:
-            delegate* pstub_;
+        template <RTYPE (*TMethod)(PARAMS...)>
+        static RTYPE function_stub(void* this_ptr, PARAMS... params) {
+            return (TMethod)(params...);
+        }
 
-        }; // class delegate
-    };     // class delegate stub
+        //// lambda stub stubs ////
+
+        template <typename LAMBDA>
+        static RTYPE lambda_stub(void* this_ptr, PARAMS... arg) {
+            LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
+            return (p->operator())(arg...);
+        }
+
+        template <typename R, typename... P>
+        friend delegate<R,P...> as(class stub& stub);
+
+
+    }; // class delegate
+
+
+    template <typename RTYPE, typename... PARAMS>
+    inline delegate<RTYPE, PARAMS...> as(stub& stub) {
+        return delegate<RTYPE, PARAMS...>(stub);
+    }
+
 
 } /* namespace rdl */
 
