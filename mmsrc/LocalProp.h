@@ -57,15 +57,17 @@ namespace rdl {
     template <class DeviceT, typename PropT>
     class LocalProp_Base : public DeviceProp_Base<DeviceT, PropT> {
      public:
+        using BaseT   = DeviceProp_Base<DeviceT, PropT>;
+        using ThisT   = LocalProp_Base<DeviceT, PropT>;
+        using ActionT = MM::Action<ThisT>;
+
         /*	Link the property to the device and initialize from the propInfo. */
         virtual int create(DeviceT* device, const PropInfo<PropT>& propInfo) {
-            MM::ActionFunctor* pAct = new ActionT(this, &LocalProp_Base<DeviceT, PropT>::OnExecute);
+            MM::ActionFunctor* pAct = new ActionT(this, &ThisT::OnExecute);
             return createAndLinkProp(device, propInfo, pAct);
         }
 
      protected:
-        using BaseT   = DeviceProp_Base<DeviceT, PropT>;
-        using ActionT = MM::Action<LocalProp_Base<DeviceT, PropT>>;
 
         LocalProp_Base() = default;
 
@@ -105,12 +107,12 @@ namespace rdl {
         }
 
         ///** Get the value before updating the property. Derived classes may override. */
-        virtual int get_impl(PropT& value) const override {
+        virtual int get_impl(PropT& value) override {
             return getCached_impl(value);
         }
 
         /** Get the cached property value (last call to set()) */
-        virtual int getCached_impl(PropT& value) const {
+        virtual int getCached_impl(PropT& value) {
             value = cachedValue_;
             return DEVICE_OK;
         }

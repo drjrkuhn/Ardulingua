@@ -23,6 +23,7 @@ struct C {
     C(int _v) { v = _v; }
     void set(int _v) { v = _v; }
     int get() const { return v; }
+    void getr(int& _v) { _v = v; }
 
     int ifv(void) { return v; }
     int ifi(int a) { return 2 * a + v; }
@@ -46,22 +47,22 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
         delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
         REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
         REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
-
-        using TupleII = std::tuple<int,int>;
-        TupleII argii = std::make_tuple(90,10);
-        int res = d_ifii.call<RetT<int>, TupleII>(argii);
-        REQUIRE(res == 100);
-
     }
+
     WHEN("class set/get int") {
         C a(10);
         auto da_set = delegate::of<RetT<void>, int>::create<C, &C::set>(&a);
         auto da_get = delegate::of<RetT<int>>::create<C, &C::get>(&a);
+        auto da_getr = delegate::of<RetT<void>,int&>::create<C, &C::getr>(&a);
         da_set.call<RetT<void>>(100);
         REQUIRE(da_get.call<RetT<int>>() == 100);
         da_set.as<RetT<void>, int>()(50);
         REQUIRE(da_get.as<RetT<int>>()() == 50);
+        int v = 0;
+        da_getr.call<RetT<void>,int&>(v);
+        REQUIRE(v == 50);
     }
+
     WHEN("class non-const methods returning int") {
         C a(10);
         auto d_ifv = delegate::of<RetT<int>>::create<C, &C::ifv>(&a);
@@ -123,5 +124,30 @@ TEST_CASE("delegate conversion", "[delegate-02]") {
         auto f_ifii = temp.as<RetT<int>, int, int>();
         REQUIRE(f_ifii(10, 20) == 30);
         REQUIRE(f_ifii.stub().call<RetT<int>, int, int>(80, 20) == 100);
+    }
+}
+
+TEST_CASE("delegate tuple call", "[delegate-31]") {
+
+    WHEN("functions returning int") {
+        delegate d_ifv = delegate::of<RetT<int>>::create<ifv>();
+        REQUIRE(d_ifv.call_tuple<RetT<int>>(std::make_tuple()) == 100);
+
+        delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
+        REQUIRE(d_ifi.call_tuple<RetT<int>>(std::make_tuple<int>(50)) == 100);
+
+        delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
+        REQUIRE(d_ifii.call_tuple<RetT<int>>(std::make_tuple<int,int>(90,10)) == 100);
+
+        REQUIRE(d_ifii.call_tuple<RetT<int>>(std::make_tuple<int,int>(90,10)) == 100);
+        
+    }
+    WHEN("class set/get int") {
+        C a(10);
+        auto da_set = delegate::of<RetT<void>, int>::create<C, &C::set>(&a);
+        auto da_get = delegate::of<RetT<int>>::create<C, &C::get>(&a);
+        auto da_getr = delegate::of<RetT<void>, int&>::create<C, &C::getr>(&a);
+        da_set.call_tuple<RetT<void>>(std::tuple<int>(100));
+        REQUIRE(da_get.call_tuple<RetT<int>>(std::tuple<>()) == 100);
     }
 }

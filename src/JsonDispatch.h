@@ -127,11 +127,6 @@ namespace rdl {
             { ; }
     #endif
 
-    // comparison operator for const char* maps
-    // struct cmp_str {
-    //     bool operator()(char const* a, char const* b) const { return std::strcmp(a, b) < 0; }
-    // };
-
     constexpr size_t BUFFER_SIZE = 256;
 
     namespace svc {
@@ -422,8 +417,14 @@ namespace rdl {
             return last_err;
         }
 
+        /** Call with no return and tuple of parameters */
+        template <typename TUPLE>
+        inline int call_tuple(const char* method, TUPLE args) {
+            return call_tuple_impl(method, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+        }
+
         template <typename RTYPE, typename... PARAMS>
-        int call(const char* method, RTYPE& ret, PARAMS... args) {
+        int call_get(const char* method, RTYPE& ret, PARAMS... args) {
             int tries    = max_retries_;
             int last_err = ERROR_OK;
             size_t msgsize;
@@ -444,12 +445,39 @@ namespace rdl {
             return last_err;
         }
 
+        /** Call with return value and tuple of parameters */
+        template <typename RTYPE, typename TUPLE>
+        inline int call_get_tuple(const char* method, RTYPE& ret, TUPLE args) {
+            return call_get_tuple_impl<RTYPE>(method, ret, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+        }
+
         template <typename... PARAMS>
         int notify(const char* method, PARAMS... args) {
             return call_impl(method, -1, args...);
         }
 
+        /** Notify (no return) with tulple of parameters */
+        template <typename TUPLE>
+        inline int notify_tuple(const char* method, TUPLE args) {
+            return notify_tuple_impl(method, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+        }
+
      protected:
+        template <typename TUPLE, size_t... I>
+        inline int call_tuple_impl(const char* method, TUPLE args, std::index_sequence<I...>) {
+            return call(method, std::get<I>(args)...);
+        }
+
+        template <typename RTYPE, typename TUPLE, size_t... I>
+        inline int call_get_tuple_impl(const char* method, RTYPE& ret, TUPLE args, std::index_sequence<I...>) {
+            return call_get<RTYPE>(method, ret, std::get<I>(args)...);
+        }
+
+        template <typename TUPLE, size_t... I>
+        inline int notify_tuple_impl(const char* method, TUPLE args, std::index_sequence<I...>) {
+            return notify(method, std::get<I>(args)...);
+        }
+
         template <typename... PARAMS>
         int call_impl(const char* method, int msg_id, PARAMS... args) {
             int last_err = ERROR_OK;
@@ -490,7 +518,7 @@ namespace rdl {
         using BaseT::max_retries_;
         using BaseT::logger_;
         long reply_wait_ms_;
-        size_t nextid_;
+        int nextid_;
         uint8_t buffer_data_[BUFSIZE];
     };
 }; // end namespace

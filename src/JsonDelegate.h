@@ -66,10 +66,11 @@ namespace rdl {
     class json_delegate : public delegate_base {
      public:
         using FnStubT   = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
-        json_delegate() = delete;
+        json_delegate() : delegate_base(), returns_void_(true) {}
 
         template <typename RTYPE, typename... PARAMS>
         class of;
+        
         template <typename RTYPE, typename... PARAMS>
         of<RTYPE, PARAMS...> as() {
             return of<RTYPE, PARAMS...>(this);
@@ -82,6 +83,7 @@ namespace rdl {
         bool returns_void() const { return returns_void_; }
 
      protected:
+
         json_delegate(void* object, FnStubT fnstub, bool returns_void)
             : delegate_base(object, reinterpret_cast<delegate_base::FnStubT>(fnstub)),
               returns_void_(returns_void) {
@@ -140,6 +142,8 @@ namespace rdl {
              * CALL OPERATOR
              *******************************************************************/
             int operator()(JsonArray& args, JsonVariant& ret) const {
+                assert(pstub_ != nullptr);
+                assert(pstub_->fnstub() != nullptr);
                 using FunctionT = json_delegate::FnStubT; // RTYPE (*)(void*, JsonVariant&, JsonArray&);
                 FunctionT fn    = reinterpret_cast<FunctionT>(pstub_->fnstub());
                 return (*fn)(pstub_->object(), args, ret);

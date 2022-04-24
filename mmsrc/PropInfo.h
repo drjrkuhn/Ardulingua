@@ -108,13 +108,13 @@ namespace rdl {
         }
 
         /** This property is volatile (not cached). */
-        PropInfo& volatile() {
+        PropInfo& volatileValue() {
             isVolatile_ = true;
             return *this;
         }
 
         /** __DEFAULT__ This property is volatile (not cached). */
-        PropInfo& notVolatile() {
+        PropInfo& notVolatileValue() {
             isVolatile_ = false;
             return *this;
         }
@@ -150,7 +150,7 @@ namespace rdl {
         bool isSequencable() const { return isSequencable_; }
 
         /** Was this a voilatile property? */
-        bool isVolatile() const { return isVolatile_; }
+        bool isVolatileValue() const { return isVolatile_; }
 
 
         /** Has the withLimits() been added? */

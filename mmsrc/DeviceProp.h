@@ -72,10 +72,10 @@ namespace rdl {
         }
 
         /** Get the internal property value directly (NOT the property store value). */
-        virtual int GetProperty(PropT& value) const { return get_impl(value); }
+        virtual int GetProperty(PropT& value) { return get_impl(value); }
 
         /** Get the locally cached property value directly (NOT the property store value). */
-        virtual int GetCachedProperty(PropT& value) const { return getCached_impl(value); }
+        virtual int GetCachedProperty(PropT& value) { return getCached_impl(value); }
 
         /**
          * Get the Device that owns the property (hub or sub-device).
@@ -100,14 +100,14 @@ namespace rdl {
          * This does NOT update the underlying MM Property store via
          * DeviceBase::SetProperty(name,value). That should happen during OnExecute
          */
-        virtual int get_impl(PropT& val) const = 0;
+        virtual int get_impl(PropT& val) = 0;
 
         /**
          * Get the inernal cached property value (last call to set()).
          * This does NOT update the underlying MM Property store via
          * DeviceBase::SetProperty(name,value). That should happen during OnExecute
          */
-        virtual int getCached_impl(PropT& value) const = 0;
+        virtual int getCached_impl(PropT& value) = 0;
 
         /**
          * Notify callback of change in value.
@@ -136,7 +136,7 @@ namespace rdl {
             brief_           = checkedInfo.brief();
             isReadOnly_      = checkedInfo.isReadOnly();
             isSequencable_   = checkedInfo.isSequencable();
-            isVolatile_      = checkedInfo.isVolatile();
+            isVolatile_      = checkedInfo.isVolatileValue();
 
             if (checkedInfo.hasInitialValue()) {
                 cachedValue_ = checkedInfo.initialValue();

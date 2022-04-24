@@ -18,6 +18,7 @@
     #define __DELEGATE_H__
 
     #include "Polyfills/std_utility.h"
+    #include <assert.h>
 
 namespace rdl {
 
@@ -36,7 +37,7 @@ namespace rdl {
      public:
         using FnStubT = void (*)(void* this_ptr);
 
-        delegate_base() = delete;
+        delegate_base() : object_(nullptr), fnstub_(nullptr){}
 
         bool operator==(const delegate_base& other) const {
             return object_ == other.object_ && fnstub_ == other.fnstub_;
@@ -51,8 +52,8 @@ namespace rdl {
      protected:
         delegate_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
 
-        void* object_   = nullptr;
-        FnStubT fnstub_ = nullptr;
+        void* object_;
+        FnStubT fnstub_;
 
     }; // class delegate_base
 
@@ -62,7 +63,7 @@ namespace rdl {
 
     class delegate : public delegate_base {
      public:
-        delegate() = delete;
+        delegate() : delegate_base() {}
 
         template <class RTYPE, typename... PPARAMS>
         class of;
@@ -75,22 +76,23 @@ namespace rdl {
         template <typename RTYPE, typename... PARAMS>
         RTYPE call(PARAMS... arg) const {
             using FunctionT = RTYPE (*)(void* this_ptr, PARAMS...);
+            assert(fnstub_ != nullptr);
             return (*reinterpret_cast<FunctionT>(fnstub_))(object_, arg...);
         }
 
         template <typename RTYPE, typename TUPLE>
-        inline RTYPE call(TUPLE& args) const {
-            return call_tuple_impl<RTYPE>(args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+        inline RTYPE call_tuple(const TUPLE& args) const {
+            assert(fnstub_ != nullptr);
+            return call_tuple_impl<RTYPE>(args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
      protected:
         delegate(void* object, FnStubT fnstub) : delegate_base(object, fnstub) {}
 
         template <typename RTYPE, typename TUPLE, size_t... I>
-        inline RTYPE call_tuple_impl(TUPLE& args, std::index_sequence<I...>) const {
+        inline RTYPE call_tuple_impl(const TUPLE& args, std::index_sequence<I...>) const {
             return call<RTYPE>(std::get<I>(args)...);
         }
-
 
      public:
         /************************************************************************
@@ -100,7 +102,7 @@ namespace rdl {
         class of {
          public:
             // no default constructor
-            of() = delete;
+            of() : pstub_(nullptr) {}
             of(delegate* pstub) : pstub_(pstub) {}
 
             const delegate& stub() const { return *pstub_; }
@@ -144,6 +146,8 @@ namespace rdl {
              *******************************************************************/
 
             RTYPE operator()(PARAMS... arg) const {
+                assert(pstub_ != nullptr);
+                assert(pstub_->fnstub() != nullptr);
                 using FunctionT = RTYPE (*)(void*, PARAMS...);
                 FunctionT fn    = reinterpret_cast<FunctionT>(pstub_->fnstub());
                 return (*fn)(pstub_->object(), arg...);
@@ -190,6 +194,7 @@ namespace rdl {
 
          protected:
             delegate* pstub_;
+
         }; // class delegate
     };     // class delegate stub
 
