@@ -55,219 +55,234 @@ namespace rdl {
         using is_void_tag = std::integral_constant<bool, std::is_void<R>::value>;
     };
 
-    /**
-     * Json stubs base.
+    /************************************************************************
+     * Json stubs with type erased
      *
      * Stubs return an integer error code or ERROR_OK
      * Take a single JsonVariant reference to fill with delegate return value
-     * Take a JsonArray reference containing an array of parameters
+     * Take a JsonArray reference containing an array json_delegate parameters
      *
-     */
-    class json_delegate : public delegate_base {
+     *                          ** WARNING **
+     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * They do not check if an object or function has gone out-of-context. Use
+     * them for permanent (top-level) or semi-permanent objects and functions 
+     * that last the lifetime of the program. 
+     * If you need function delegates with delete, move, etc, use std::function
+     * found in the STL header <functional>
+     ***********************************************************************/
+    class json_stub : public delegate_base {
      public:
-        using FnStubT   = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
-        json_delegate() : delegate_base(), returns_void_(true) {}
-
-        template <typename RTYPE, typename... PARAMS>
-        class of;
-        
-        template <typename RTYPE, typename... PARAMS>
-        of<RTYPE, PARAMS...> as() {
-            return of<RTYPE, PARAMS...>(this);
-        }
+        using FnStubT = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
+        json_stub() : delegate_base(), returns_void_(true) {}
+        json_stub(void* object, FnStubT fnstub, bool returns_void)
+            : delegate_base(object, reinterpret_cast<delegate_base::FnStubT>(fnstub)),
+              returns_void_(returns_void) {}
 
         int call(JsonArray& args, JsonVariant& ret) const {
+            assert(fnstub_ != nullptr);
             return (*reinterpret_cast<FnStubT>(fnstub_))(object_, args, ret);
         }
 
         bool returns_void() const { return returns_void_; }
 
      protected:
-
-        json_delegate(void* object, FnStubT fnstub, bool returns_void)
-            : delegate_base(object, reinterpret_cast<delegate_base::FnStubT>(fnstub)),
-              returns_void_(returns_void) {
-        }
         const bool returns_void_;
+    }; // json_stub
 
+    /************************************************************************
+     * Typed jsondelegate stubs
+     *
+     *                          ** WARNING **
+     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * They do not check if an object or function has gone out-of-context. Use
+     * them for permanent (top-level) or semi-permanent objects and functions 
+     * that last the lifetime of the program. 
+     * If you need function delegates with delete, move, etc, use std::function
+     * found in the STL header <functional>
+     ***********************************************************************/
+    template <typename RTYPE, typename... PARAMS>
+    class json_delegate {
      public:
-        /************************************************************************
-         * Typed jsondelegate stubs
-         ***********************************************************************/
-        template <typename RTYPE, typename... PARAMS>
-        class of {
-         public:
-            // no default constructor
-            of() = delete;
-            of(json_delegate* pstub) : pstub_(pstub) {}
+        // no default constructor
+        json_delegate() 
+        : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub)) {}
 
-            const json_delegate& stub() const { return *pstub_; }
+        bool operator==(const json_delegate& other) const { return stub_ == other.stub_; }
+        bool operator!=(const json_delegate& other) const { return stub_ != other.stub_; }
 
-            bool operator==(const of& other) const { return pstub_ == other.pstub_; }
-            bool operator!=(const of& other) const { return pstub_ != other.pstub_; }
+        const json_stub& stub() const { return *stub_; }
 
-            /********************************************************************
-             * FACTORIES
-             *******************************************************************/
-            template <class T, RTYPE (T::*TMethod)(PARAMS...)>
-            static json_delegate create(T* instance) {
-                auto jsonstub = method_jsonstub<T, TMethod>;
-                json_delegate del(instance, reinterpret_cast<json_delegate::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
-                return del;
-            }
+        /********************************************************************
+         * FACTORIES
+         *******************************************************************/
+        template <class T, RTYPE (T::*TMethod)(PARAMS...)>
+        static json_delegate create(T* instance) {
+            auto jsonstub = method_jsonstub<T, TMethod>;
+            return json_delegate(instance, reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
-            static json_delegate create(T const* instance) {
-                auto jsonstub = const_method_jsonstub<T, TMethod>;
-                json_delegate del(const_cast<T*>(instance), reinterpret_cast<json_delegate::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
-                return del;
-            }
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
+        static json_delegate create(T const* instance) {
+            auto jsonstub = const_method_jsonstub<T, TMethod>;
+            return json_delegate(const_cast<T*>(instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+        }
 
-            // template <typename TMethod>
-            template <RTYPE (*TMethod)(PARAMS...)>
-            static json_delegate create() {
-                auto jsonstub = function_jsonstub<TMethod>;
-                json_delegate del(nullptr, reinterpret_cast<json_delegate::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
-                return del;
-            }
+        // template <typename TMethod>
+        template <RTYPE (*TMethod)(PARAMS...)>
+        static json_delegate create() {
+            auto jsonstub = function_jsonstub<TMethod>;
+            return json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+        }
 
-            template <typename LAMBDA>
-            static json_delegate create(const LAMBDA& instance) {
-                auto jsonstub = lambda_jsonstub<LAMBDA>;
-                json_delegate del((void*)(&instance), reinterpret_cast<json_delegate::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
-                return del;
-            }
+        template <typename LAMBDA>
+        static json_delegate create(const LAMBDA& instance) {
+            auto jsonstub = lambda_jsonstub<LAMBDA>;
+            return json_delegate((void*)(&instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+        }
 
-            /********************************************************************
-             * CALL OPERATOR
-             *******************************************************************/
-            int operator()(JsonArray& args, JsonVariant& ret) const {
-                assert(pstub_ != nullptr);
-                assert(pstub_->fnstub() != nullptr);
-                using FunctionT = json_delegate::FnStubT; // RTYPE (*)(void*, JsonVariant&, JsonArray&);
-                FunctionT fn    = reinterpret_cast<FunctionT>(pstub_->fnstub());
-                return (*fn)(pstub_->object(), args, ret);
-            }
+        /********************************************************************
+         * CALL OPERATOR
+         *******************************************************************/
+        int operator()(JsonArray& args, JsonVariant& ret) const {
+            assert(stub_->fnstub() != nullptr);
+            using FunctionT = json_stub::FnStubT;
+            FunctionT fn    = reinterpret_cast<FunctionT>(stub_->fnstub());
+            return (*fn)(stub_->object(), args, ret);
+        }
 
-         protected:
-            friend json_delegate;
+     protected:
+        class json_stub stub_;
 
-            /********************************************************************
-             * STUB IMPLEMENTATIONS
-             * note pointer to member function in template list
-             *
-             * @see https://godbolt.org/z/QDyx3H for example of unpacking using
-             * std::index_sequence
-             *******************************************************************/
+        json_delegate(class stub _stub) : stub_(_stub) {}
+        json_delegate(void* object, json_stub::FnStubT fnstub) : stub_(object, fnstub) {}
 
-            //// class method stubs ////
+        template <typename R, typename... P>
+        friend json_delegate<R, P...> as(class json_stub& stub);
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...), size_t... I>
-            inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-                // std::cout << "[method_jsonstub_impl:ret_is_void]";
-                T* p = static_cast<T*>(this_ptr);
-                (p->*TMethod)(args[I].as<PARAMS>()...);
+        /********************************************************************
+         * STUB IMPLEMENTATIONS
+         * note pointer to member function in template list
+         *
+         * @see https://godbolt.org/z/QDyx3H for example json_delegate unpacking using
+         * std::index_sequence
+         *******************************************************************/
+
+        //// class method stubs ////
+
+        template <class T, RTYPE (T::*TMethod)(PARAMS...), size_t... I>
+        inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // std::cout << "[method_jsonstub_impl:ret_is_void]";
+            T* p = static_cast<T*>(this_ptr);
+            (p->*TMethod)(args[I].as<PARAMS>()...);
+            return ERROR_OK;
+        }
+
+        template <class T, RTYPE (T::*TMethod)(PARAMS...), size_t... I>
+        inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // std::cout << "[method_jsonstub_impl:ret_not_void]";
+            T* p = static_cast<T*>(this_ptr);
+            if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
-            }
+            else
+                return ERROR_JSON_RET_NOT_SET;
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...), size_t... I>
-            inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-                // std::cout << "[method_jsonstub_impl:ret_not_void]";
-                T* p = static_cast<T*>(this_ptr);
-                if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
-                    return ERROR_OK;
-                else
-                    return ERROR_JSON_RET_NOT_SET;
-            }
+        template <class T, RTYPE (T::*TMethod)(PARAMS...)>
+        static int method_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
+            if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
+            return method_jsonstub_impl<T, TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>{}, svc::is_void_tag<RTYPE>{});
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...)>
-            static int method_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
-                if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
-                return method_jsonstub_impl<T, TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>{}, svc::is_void_tag<RTYPE>{});
-            }
+        //// class constant method stubs ////
 
-            //// class constant method stubs ////
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const, size_t... I>
+        inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // std::cout << "[const_method_jsonstub_impl:ret_is_void]";
+            T* const p = static_cast<T*>(this_ptr);
+            (p->*TMethod)(args[I].as<PARAMS>()...);
+            return ERROR_OK;
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const, size_t... I>
-            inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-                // std::cout << "[const_method_jsonstub_impl:ret_is_void]";
-                T* const p = static_cast<T*>(this_ptr);
-                (p->*TMethod)(args[I].as<PARAMS>()...);
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const, size_t... I>
+        inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // std::cout << "[const_method_jsonstub_impl:ret_not_void]";
+            T* const p = static_cast<T*>(this_ptr);
+            if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
-            }
+            else
+                return ERROR_JSON_RET_NOT_SET;
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const, size_t... I>
-            inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-                // std::cout << "[const_method_jsonstub_impl:ret_not_void]";
-                T* const p = static_cast<T*>(this_ptr);
-                if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
-                    return ERROR_OK;
-                else
-                    return ERROR_JSON_RET_NOT_SET;
-            }
+        template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
+        static int const_method_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
+            if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
+            return const_method_jsonstub_impl<T, TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>(), svc::is_void_tag<RTYPE>{});
+        }
 
-            template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
-            static int const_method_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
-                if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
-                return const_method_jsonstub_impl<T, TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>(), svc::is_void_tag<RTYPE>{});
-            }
+        //// free jsondelegate stubs ////
 
-            //// free jsondelegate stubs ////
+        template <RTYPE (*TMethod)(PARAMS...), size_t... I>
+        inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // std::cout << "[function_jsonstub_impl:ret_is_void]";
+            (TMethod)(args[I].as<PARAMS>()...);
+            return ERROR_OK;
+        }
 
-            template <RTYPE (*TMethod)(PARAMS...), size_t... I>
-            inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-                // std::cout << "[function_jsonstub_impl:ret_is_void]";
-                (TMethod)(args[I].as<PARAMS>()...);
+        template <RTYPE (*TMethod)(PARAMS...), size_t... I>
+        inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // std::cout << "[function_jsonstub_impl:ret_not_void]";
+            if (ret.set(static_cast<RTYPE>((TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
-            }
+            else
+                return ERROR_JSON_RET_NOT_SET;
+        }
 
-            template <RTYPE (*TMethod)(PARAMS...), size_t... I>
-            inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-                // std::cout << "[function_jsonstub_impl:ret_not_void]";
-                if (ret.set(static_cast<RTYPE>((TMethod)(args[I].as<PARAMS>()...))))
-                    return ERROR_OK;
-                else
-                    return ERROR_JSON_RET_NOT_SET;
-            }
+        template <RTYPE (*TMethod)(PARAMS...)>
+        static int function_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
+            constexpr size_t nparams = sizeof...(PARAMS);
+            size_t nargs             = args.size();
+            if (nargs < nparams) return ERROR_JSON_INVALID_PARAMS;
+            return function_jsonstub_impl<TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>{}, svc::is_void_tag<RTYPE>{});
+        }
 
-            template <RTYPE (*TMethod)(PARAMS...)>
-            static int function_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
-                constexpr size_t nparams = sizeof...(PARAMS);
-                size_t nargs             = args.size();
-                if (nargs < nparams) return ERROR_JSON_INVALID_PARAMS;
-                return function_jsonstub_impl<TMethod>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>{}, svc::is_void_tag<RTYPE>{});
-            }
+        //// lambda jsondelegate stubs ////
 
-            //// lambda jsondelegate stubs ////
+        template <typename LAMBDA, size_t... I>
+        inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // std::cout << "[lambda_jsonstub_impl:ret_is_void]";
+            LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
+            (p->operator())(args[I].as<PARAMS>()...);
+            return ERROR_OK;
+        }
 
-            template <typename LAMBDA, size_t... I>
-            inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-                // std::cout << "[lambda_jsonstub_impl:ret_is_void]";
-                LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
-                (p->operator())(args[I].as<PARAMS>()...);
+        template <typename LAMBDA, size_t... I>
+        inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // std::cout << "[lambda_jsonstub_impl:ret_not_void]";
+            LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
+            if (ret.set(static_cast<RTYPE>((p->operator())(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
-            }
+            else
+                return ERROR_JSON_RET_NOT_SET;
+        }
 
-            template <typename LAMBDA, size_t... I>
-            inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-                // std::cout << "[lambda_jsonstub_impl:ret_not_void]";
-                LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
-                if (ret.set(static_cast<RTYPE>((p->operator())(args[I].as<PARAMS>()...))))
-                    return ERROR_OK;
-                else
-                    return ERROR_JSON_RET_NOT_SET;
-            }
+        template <typename LAMBDA>
+        static int lambda_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
+            if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
+            return lambda_jsonstub_impl<LAMBDA>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>(), svc::is_void_tag<RTYPE>{});
+        }
 
-            template <typename LAMBDA>
-            static int lambda_jsonstub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
-                if (args.size() < sizeof...(PARAMS)) return ERROR_JSON_INVALID_PARAMS;
-                return lambda_jsonstub_impl<LAMBDA>(this_ptr, args, ret, std::index_sequence_for<PARAMS...>(), svc::is_void_tag<RTYPE>{});
-            }
+        //// error stub ////
+        inline static int error_stub(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            assert(false);
+            return ERROR_JSON_METHOD_NOT_FOUND;
+        }
 
-         protected:
-            json_delegate* pstub_;
-        }; // jsondelegate
-    };     // json_delegate
+    }; // jsondelegate
+
+    template <typename RTYPE, typename... PARAMS>
+    json_delegate<RTYPE, PARAMS...> as(json_stub& stub) {
+        return json_delegate<RTYPE, PARAMS...>(stub);
+    }
 
 } /* namespace rdl */
 

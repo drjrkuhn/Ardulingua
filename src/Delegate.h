@@ -32,13 +32,23 @@ namespace rdl {
     using RetT = typename Ret<R>::type;
 
     /************************************************************************
-     * Generic stub stub with of type erased.
+     * Generic function call stub with delegate type erased.
+     * 
+     *                          ** WARNING **
+     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * They do not check if an object or function has gone out-of-context. Use
+     * them for permanent (top-level) or semi-permanent objects and functions 
+     * that last the lifetime of the program. 
+     * If you need function delegates with delete, move, etc, use std::function
+     * found in the STL header <functional>
+     * 
      ***********************************************************************/
     class stub_base {
      public:
         using FnStubT = void (*)(void* this_ptr);
 
         stub_base() : object_(nullptr), fnstub_(nullptr) {}
+        stub_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
 
         bool operator==(const stub_base& other) const {
             return object_ == other.object_ && fnstub_ == other.fnstub_;
@@ -51,25 +61,31 @@ namespace rdl {
         FnStubT fnstub() const { return fnstub_; }
 
      protected:
-        stub_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
-
         void* object_;
         FnStubT fnstub_;
-
     }; // class stub_base
 
     /************************************************************************
      * Generic stub with delegate type erased.
+     * 
+     *                          ** WARNING **
+     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * They do not check if an object or function has gone out-of-context. Use
+     * them for permanent (top-level) or semi-permanent objects and functions 
+     * that last the lifetime of the program. 
+     * If you need function delegates with delete, move, etc, use std::function
+     * found in the STL header <functional>
      ***********************************************************************/
 
     class stub : public stub_base {
      public:
         stub() : stub_base() {}
+        stub(void* object, FnStubT fnstub) : stub_base(object, fnstub) {}
 
         template <typename RTYPE, typename... PARAMS>
         RTYPE call(PARAMS... arg) const {
-            using FunctionT = RTYPE (*)(void* this_ptr, PARAMS...);
             assert(fnstub_ != nullptr);
+            using FunctionT = RTYPE (*)(void* this_ptr, PARAMS...);
             return (*reinterpret_cast<FunctionT>(fnstub_))(object_, arg...);
         }
 
@@ -79,35 +95,34 @@ namespace rdl {
             return call_tuple_impl<RTYPE>(args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
-        stub(void* object, FnStubT fnstub) : stub_base(object, fnstub) {}
-
      protected:
-
         template <typename RTYPE, typename TUPLE, size_t... I>
         inline RTYPE call_tuple_impl(const TUPLE& args, std::index_sequence<I...>) const {
             return call<RTYPE>(std::get<I>(args)...);
         }
 
-     public:
     }; // class stub
 
     /************************************************************************
-     * Typed stub stubs
+     * Typed delegates
+     * 
+     *                          ** WARNING **
+     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * They do not check if an object or function has gone out-of-context. Use
+     * them for permanent (top-level) or semi-permanent objects and functions 
+     * that last the lifetime of the program. 
+     * If you need function delegates with delete, move, etc, use std::function
+     * found in the STL header <functional>
      ***********************************************************************/
     template <typename RTYPE, typename... PARAMS>
     class delegate {
-     protected:
-        stub stub_;
-        delegate(stub _stub) : stub_(_stub) {}
-        delegate(void* object, stub_base::FnStubT fnstub) : stub_(object, fnstub) {}
-
      public:
         delegate() : delegate(nullptr, reinterpret_cast<stub::FnStubT>(error_stub)) {}
 
-        const stub& stub() const { return stub_; }
-
         bool operator==(const delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const delegate& other) const { return stub_ != other.stub_; }
+
+        const stub& stub() const { return stub_; }
 
         /********************************************************************
          * FACTORIES
@@ -148,13 +163,13 @@ namespace rdl {
         }
 
      protected:
-        friend class stub;
+        class stub stub_;
 
-        static RTYPE error_stub(void* this_ptr, PARAMS... params) {
-            assert(false);
-            RTYPE ret;
-            return ret;
-        }
+        delegate(const class stub& _stub) : stub_(_stub) {}
+        delegate(void* object, stub_base::FnStubT fnstub) : stub_(object, fnstub) {}
+
+        template <typename R, typename... P>
+        friend delegate<R, P...> as(class stub& stub);
 
         /********************************************************************
          * STUB IMPLEMENTATIONS
@@ -169,7 +184,7 @@ namespace rdl {
             return (p->*TMethod)(params...);
         }
 
-        //// class constant method stubs ////
+        //// class constant method stub ////
 
         template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
         static RTYPE const_method_stub(void* this_ptr, PARAMS... params) {
@@ -177,14 +192,14 @@ namespace rdl {
             return (p->*TMethod)(params...);
         }
 
-        //// free stub stubs ////
+        //// free stub ////
 
         template <RTYPE (*TMethod)(PARAMS...)>
         static RTYPE function_stub(void* this_ptr, PARAMS... params) {
             return (TMethod)(params...);
         }
 
-        //// lambda stub stubs ////
+        //// lambda stub ////
 
         template <typename LAMBDA>
         static RTYPE lambda_stub(void* this_ptr, PARAMS... arg) {
@@ -192,18 +207,20 @@ namespace rdl {
             return (p->operator())(arg...);
         }
 
-        template <typename R, typename... P>
-        friend delegate<R,P...> as(class stub& stub);
+        //// error stub ////
 
-
+        static RTYPE error_stub(void* this_ptr, PARAMS... params) {
+            assert(false);
+            RTYPE ret;
+            return ret;
+        }
+        
     }; // class delegate
-
 
     template <typename RTYPE, typename... PARAMS>
     inline delegate<RTYPE, PARAMS...> as(stub& stub) {
         return delegate<RTYPE, PARAMS...>(stub);
     }
-
 
 } /* namespace rdl */
 

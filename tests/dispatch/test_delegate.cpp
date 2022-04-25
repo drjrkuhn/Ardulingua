@@ -37,128 +37,135 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
 
     WHEN("functions returning int") {
 
-        delegate<int,int> bad;
-        bad(10);
-
         auto d_ifv = delegate<RetT<int>>::create<ifv>();
         auto s_ifv = d_ifv.stub();
         REQUIRE(d_ifv() == 100);
         REQUIRE(s_ifv.call<RetT<int>>() == 100);
-        auto ds_ifv = as<int>(s_ifv);
-        REQUIRE(ds_ifv() == 100);
+        REQUIRE(as<int>(s_ifv)() == 100);
 
-        // delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
-        // REQUIRE(d_ifi.call<RetT<int>, int>(50) == 100);
-        // REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 50);
+        auto d_ifi = delegate<RetT<int>, int>::create<ifi>();
+        auto s_ifi = d_ifi.stub();
+        REQUIRE(d_ifi(50) == 100);
+        REQUIRE(s_ifi.call<RetT<int>, int>(50) == 100);
+        REQUIRE(as<RetT<int>, int>(s_ifi)(25) == 50);
 
-        // delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
-        // REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
-        // REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
+        auto d_ifii = delegate<RetT<int>, int, int>::create<ifii>();
+        auto s_ifii = d_ifii.stub();
+        REQUIRE(d_ifii(50, 10) == 60);
+        REQUIRE(s_ifii.call<RetT<int>, int, int>(40, 10) == 50);
+        REQUIRE(as<RetT<int>, int, int>(s_ifii)(30, 10) == 40);
     }
 
-#if 0
     WHEN("class set/get int") {
         C a(10);
-        auto da_set = delegate::of<RetT<void>, int>::create<C, &C::set>(&a);
-        auto da_get = delegate::of<RetT<int>>::create<C, &C::get>(&a);
-        auto da_getr = delegate::of<RetT<void>,int&>::create<C, &C::getr>(&a);
-        da_set.call<RetT<void>>(100);
-        REQUIRE(da_get.call<RetT<int>>() == 100);
-        da_set.as<RetT<void>, int>()(50);
-        REQUIRE(da_get.as<RetT<int>>()() == 50);
+        auto da_set = delegate<RetT<void>, int>::create<C, &C::set>(&a);
+        auto da_get = delegate<RetT<int>>::create<C, &C::get>(&a);
+        auto da_getr = delegate<RetT<void>,int&>::create<C, &C::getr>(&a);
+        auto sa_set = da_set.stub();
+        auto sa_get = da_get.stub();
+        da_set(100);
+        REQUIRE(da_get() == 100);
+        as<RetT<void>, int>(sa_set)(50);
+        REQUIRE(as<RetT<int>>(sa_get)() == 50);
         int v = 0;
-        da_getr.call<RetT<void>,int&>(v);
+        da_getr(v);
         REQUIRE(v == 50);
     }
 
     WHEN("class non-const methods returning int") {
         C a(10);
-        auto d_ifv = delegate::of<RetT<int>>::create<C, &C::ifv>(&a);
-        REQUIRE(d_ifv.call<RetT<int>>() == 10);
-        REQUIRE(d_ifv.as<RetT<int>>()() == 10);
+        auto d_ifv = delegate<RetT<int>>::create<C, &C::ifv>(&a);
+        auto s_ifv = d_ifv.stub();
+        REQUIRE(d_ifv() == 10);
+        REQUIRE(as<RetT<int>>(s_ifv)() == 10);
 
-        auto d_ifi = delegate::of<RetT<int>, int>::create<C, &C::ifi>(&a);
-        REQUIRE(d_ifi.call<RetT<int>, int>(50) == 110);
-        REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 60);
+        auto d_ifi = delegate<RetT<int>, int>::create<C, &C::ifi>(&a);
+        auto s_ifi = d_ifi.stub();
+        REQUIRE(d_ifi(50) == 110);
+        REQUIRE(as<RetT<int>, int>(s_ifi)(25) == 60);
 
-        auto d_ifii = delegate::of<RetT<int>, int, int>::create<C, &C::ifii>(&a);
-        REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 110);
-        REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 40);
+        auto d_ifii = delegate<RetT<int>, int, int>::create<C, &C::ifii>(&a);
+        auto s_ifii = d_ifii.stub();
+        REQUIRE(d_ifii(80, 20) == 110);
+        REQUIRE(as<RetT<int>, int, int>(s_ifii)(10, 20) == 40);
     }
+
     WHEN("class const methods returning int") {
         C a(10);
-        auto d_ifv = delegate::of<RetT<int>>::create<C, &C::ifv_c>(&a);
-        REQUIRE(d_ifv.call<RetT<int>>() == 10);
-        REQUIRE(d_ifv.as<RetT<int>>()() == 10);
+        auto d_ifv = delegate<RetT<int>>::create<C, &C::ifv_c>(&a);
+        auto s_ifv = d_ifv.stub();
+        REQUIRE(d_ifv() == 10);
+        REQUIRE(as<RetT<int>>(s_ifv)() == 10);
 
-        auto d_ifi = delegate::of<RetT<int>, int>::create<C, &C::ifi_c>(&a);
-        REQUIRE(d_ifi.call<RetT<int>, int>(50) == 110);
-        REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 60);
+        auto d_ifi = delegate<RetT<int>, int>::create<C, &C::ifi_c>(&a);
+        auto s_ifi = d_ifi.stub();
+        REQUIRE(d_ifi(50) == 110);
+        REQUIRE(as<RetT<int>, int>(s_ifi)(25) == 60);
 
-        auto d_ifii = delegate::of<RetT<int>, int, int>::create<C, &C::ifii_c>(&a);
-        REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 110);
-        REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 40);
+        auto d_ifii = delegate<RetT<int>, int, int>::create<C, &C::ifii_c>(&a);
+        auto s_ifii = d_ifii.stub();
+        REQUIRE(d_ifii(80, 20) == 110);
+        REQUIRE(as<RetT<int>, int, int>(s_ifii)(10, 20) == 40);
     }
+
     WHEN("lambdas returning int") {
         int capture = 200;
-        auto d_ifv = delegate::of<RetT<int>>::create([&capture]() { return capture; });
-        REQUIRE(d_ifv.call<RetT<int>>() == 200);
-        REQUIRE(d_ifv.as<RetT<int>>()() == 200);
+        auto d_ifv = delegate<RetT<int>>::create([&capture]() { return capture; });
+        auto s_ifv = d_ifv.stub();
+        REQUIRE(d_ifv() == 200);
+        REQUIRE(as<RetT<int>>(s_ifv)() == 200);
 
-        auto d_ifi = delegate::of<RetT<int>, int>::create([](int a) { return 2 * a; });
-        REQUIRE(d_ifi.call<RetT<int>, int>(50) == 100);
-        REQUIRE(d_ifi.as<RetT<int>, int>()(25) == 50);
+        auto d_ifi = delegate<RetT<int>, int>::create([](int a) { return 2 * a; });
+        auto s_ifi = d_ifi.stub();
+        REQUIRE(d_ifi(50) == 100);
+        REQUIRE(as<RetT<int>, int>(s_ifi)(25) == 50);
 
-        auto d_ifii = delegate::of<RetT<int>, int, int>::create([](int a, int b) { return a + b; });
-        REQUIRE(d_ifii.call<RetT<int>, int, int>(80, 20) == 100);
-        REQUIRE(d_ifii.as<RetT<int>, int, int>()(10, 20) == 30);
+        auto d_ifii = delegate<RetT<int>, int, int>::create([](int a, int b) { return a + b; });
+        auto s_ifii = d_ifii.stub();
+        REQUIRE(d_ifii(80, 20) == 100);
+        REQUIRE(as<RetT<int>, int, int>(s_ifii)(10, 20) == 30);
     }
-#endif
 }
 
-#if 0
-TEST_CASE("delegate conversion", "[delegate-02]") {
+TEST_CASE("delegate stubs", "[delegate-02]") {
 
     WHEN("functions returning int") {
-        delegate temp = delegate::of<RetT<int>>::create<ifv>();
-        auto f_ifv = temp.as<RetT<int>>();
+        stub temp = delegate<RetT<int>>::create<ifv>().stub();
+        auto f_ifv = as<RetT<int>>(temp);
         REQUIRE(f_ifv() == 100);
         REQUIRE(f_ifv.stub().call<RetT<int>>() == 100);
 
-        temp = delegate::of<RetT<int>, int>::create<ifi>();
-        auto f_ifi = temp.as<RetT<int>,int>();
+        temp = delegate<RetT<int>, int>::create<ifi>().stub();
+        auto f_ifi = as<RetT<int>,int>(temp);
         REQUIRE(f_ifi(50) == 100);
         REQUIRE(f_ifi.stub().call<RetT<int>, int>(50) == 100);
 
-        temp = delegate::of<RetT<int>, int, int>::create<ifii>();
-        auto f_ifii = temp.as<RetT<int>, int, int>();
+        temp = delegate<RetT<int>, int, int>::create<ifii>().stub();
+        auto f_ifii = as<RetT<int>, int, int>(temp);
         REQUIRE(f_ifii(10, 20) == 30);
         REQUIRE(f_ifii.stub().call<RetT<int>, int, int>(80, 20) == 100);
     }
 }
 
-TEST_CASE("delegate tuple call", "[delegate-31]") {
+TEST_CASE("delegate stub tuple call", "[delegate-03]") {
 
     WHEN("functions returning int") {
-        delegate d_ifv = delegate::of<RetT<int>>::create<ifv>();
+        stub d_ifv = delegate<RetT<int>>::create<ifv>().stub();
         REQUIRE(d_ifv.call_tuple<RetT<int>>(std::make_tuple()) == 100);
 
-        delegate d_ifi = delegate::of<RetT<int>, int>::create<ifi>();
+        stub d_ifi = delegate<RetT<int>, int>::create<ifi>().stub();
         REQUIRE(d_ifi.call_tuple<RetT<int>>(std::make_tuple<int>(50)) == 100);
 
-        delegate d_ifii = delegate::of<RetT<int>, int, int>::create<ifii>();
+        stub d_ifii = delegate<RetT<int>, int, int>::create<ifii>().stub();
         REQUIRE(d_ifii.call_tuple<RetT<int>>(std::make_tuple<int,int>(90,10)) == 100);
-
-        REQUIRE(d_ifii.call_tuple<RetT<int>>(std::make_tuple<int,int>(90,10)) == 100);
-        
     }
+
     WHEN("class set/get int") {
         C a(10);
-        auto da_set = delegate::of<RetT<void>, int>::create<C, &C::set>(&a);
-        auto da_get = delegate::of<RetT<int>>::create<C, &C::get>(&a);
-        auto da_getr = delegate::of<RetT<void>, int&>::create<C, &C::getr>(&a);
+        stub da_set = delegate<RetT<void>, int>::create<C, &C::set>(&a).stub();
+        stub da_get = delegate<RetT<int>>::create<C, &C::get>(&a).stub();
+        stub da_getr = delegate<RetT<void>, int&>::create<C, &C::getr>(&a).stub();
         da_set.call_tuple<RetT<void>>(std::tuple<int>(100));
         REQUIRE(da_get.call_tuple<RetT<int>>(std::tuple<>()) == 100);
     }
 }
-#endif

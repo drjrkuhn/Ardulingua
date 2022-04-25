@@ -350,8 +350,8 @@ namespace rdl {
                 mapit = dispatch_map_.find(method);
                 err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
                 if (err != ERROR_OK) break;
-                json_delegate jdelegate = mapit->second;
-                err = jdelegate.call(args, result);
+                json_stub jstub = mapit->second;
+                err = jstub.call(args, result);
                 break;
             }
             if (id >= 0) { // server wants reply
