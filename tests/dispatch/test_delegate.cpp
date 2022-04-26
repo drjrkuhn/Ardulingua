@@ -18,19 +18,20 @@ int ifv(void) { return 100; }
 int ifi(int a) { return 2 * a; }
 int ifii(int a, int b) { return a + b; }
 
-struct C {
-    int v;
-    C(int _v) { v = _v; }
+template <typename T>
+struct C_base {
+    T v;
+    C_base(T _v) { v = _v; }
     void set(int _v) { v = _v; }
-    int get() const { return v; }
-    void getr(int& _v) { _v = v; }
+    T get() const { return v; }
+    void getr(T& _v) { _v = v; }
 
-    int ifv(void) { return v; }
-    int ifi(int a) { return 2 * a + v; }
-    int ifii(int a, int b) { return a + b + v; }
-    int ifv_c(void) const { return v; }
-    int ifi_c(int a) const { return 2 * a + v; }
-    int ifii_c(int a, int b) const { return a + b + v; }
+    T ifv(void) { return v; }
+    T ifi(T a) { return 2 * a + v; }
+    T ifii(T a, T b) { return a + b + v; }
+    T ifv_c(void) const { return v; }
+    T ifi_c(T a) const { return 2 * a + v; }
+    T ifii_c(T a, T b) const { return a + b + v; }
 };
 
 TEST_CASE("delegate basic function", "[delegate-01]") {
@@ -57,6 +58,7 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
     }
 
     WHEN("class set/get int") {
+        using C = C_base<int>;
         C a(10);
         auto da_set = delegate<RetT<void>, int>::create<C, &C::set>(&a);
         auto da_get = delegate<RetT<int>>::create<C, &C::get>(&a);
@@ -73,6 +75,7 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
     }
 
     WHEN("class non-const methods returning int") {
+        using C = C_base<int>;
         C a(10);
         auto d_ifv = delegate<RetT<int>>::create<C, &C::ifv>(&a);
         auto s_ifv = d_ifv.stub();
@@ -91,6 +94,7 @@ TEST_CASE("delegate basic function", "[delegate-01]") {
     }
 
     WHEN("class const methods returning int") {
+        using C = C_base<int>;
         C a(10);
         auto d_ifv = delegate<RetT<int>>::create<C, &C::ifv_c>(&a);
         auto s_ifv = d_ifv.stub();
@@ -161,6 +165,7 @@ TEST_CASE("delegate stub tuple call", "[delegate-03]") {
     }
 
     WHEN("class set/get int") {
+        using C = C_base<int>;
         C a(10);
         stub da_set = delegate<RetT<void>, int>::create<C, &C::set>(&a).stub();
         stub da_get = delegate<RetT<int>>::create<C, &C::get>(&a).stub();

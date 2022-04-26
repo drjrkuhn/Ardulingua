@@ -122,29 +122,34 @@ namespace rdl {
         bool operator==(const delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const delegate& other) const { return stub_ != other.stub_; }
 
-        const stub& stub() const { return stub_; }
+        const class stub& stub() const { return stub_; }
 
         /********************************************************************
          * FACTORIES
          *******************************************************************/
+        
+        /** Create from class method */
         template <class T, RTYPE (T::*TMethod)(PARAMS...)>
         static delegate create(T* instance) {
             auto mstub = method_stub<T, TMethod>;
             return delegate(instance, reinterpret_cast<stub::FnStubT>(mstub));
         }
 
+        /** Create from const class method */
         template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
         static delegate create(T const* instance) {
             auto mstub = const_method_stub<T, TMethod>;
             return delegate(const_cast<T*>(instance), reinterpret_cast<stub::FnStubT>(mstub));
         }
 
+        /** Create from static function */
         template <RTYPE (*TMethod)(PARAMS...)>
         static delegate create() {
             auto fstub = function_stub<TMethod>;
             return delegate(nullptr, reinterpret_cast<stub::FnStubT>(fstub));
         }
 
+        /** Create from lambda */
         template <typename LAMBDA>
         static delegate create(const LAMBDA& instance) {
             auto lstub = lambda_stub<LAMBDA>;
@@ -209,7 +214,7 @@ namespace rdl {
 
         //// error stub ////
 
-        static RTYPE error_stub(void* this_ptr, PARAMS... params) {
+        static RTYPE error_stub(void*, PARAMS...) {
             assert(false);
             RTYPE ret;
             return ret;

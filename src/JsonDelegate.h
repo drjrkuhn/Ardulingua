@@ -70,12 +70,12 @@ namespace rdl {
      * If you need function delegates with delete, move, etc, use std::function
      * found in the STL header <functional>
      ***********************************************************************/
-    class json_stub : public delegate_base {
+    class json_stub : public stub_base {
      public:
         using FnStubT = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
-        json_stub() : delegate_base(), returns_void_(true) {}
+        json_stub() : stub_base(), returns_void_(true) {}
         json_stub(void* object, FnStubT fnstub, bool returns_void)
-            : delegate_base(object, reinterpret_cast<delegate_base::FnStubT>(fnstub)),
+            : stub_base(object, reinterpret_cast<stub_base::FnStubT>(fnstub)),
               returns_void_(returns_void) {}
 
         int call(JsonArray& args, JsonVariant& ret) const {
@@ -105,37 +105,41 @@ namespace rdl {
      public:
         // no default constructor
         json_delegate() 
-        : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub)) {}
+        : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub), std::is_void<RTYPE>::value) {}
 
         bool operator==(const json_delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const json_delegate& other) const { return stub_ != other.stub_; }
 
-        const json_stub& stub() const { return *stub_; }
+        const json_stub& stub() const { return stub_; }
 
         /********************************************************************
          * FACTORIES
          *******************************************************************/
-        template <class T, RTYPE (T::*TMethod)(PARAMS...)>
-        static json_delegate create(T* instance) {
-            auto jsonstub = method_jsonstub<T, TMethod>;
+
+        /** Create from class method */
+        template <typename C, RTYPE(C::*TMethod)(PARAMS...)>
+        static json_delegate create_m(C* instance) {
+            auto jsonstub = method_jsonstub<C, TMethod>;
             return json_delegate(instance, reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
         }
 
-        template <class T, RTYPE (T::*TMethod)(PARAMS...) const>
-        static json_delegate create(T const* instance) {
-            auto jsonstub = const_method_jsonstub<T, TMethod>;
-            return json_delegate(const_cast<T*>(instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+        /** Create from const class method */
+        template <class C, RTYPE (C::*TMethod)(PARAMS...) const>
+        static json_delegate create_cm(C const* instance) {
+            auto jsonstub = const_method_jsonstub<C, TMethod>;
+            return json_delegate(const_cast<C*>(instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
         }
 
-        // template <typename TMethod>
+        /** Create from static function */
         template <RTYPE (*TMethod)(PARAMS...)>
-        static json_delegate create() {
+        static json_delegate create_f() {
             auto jsonstub = function_jsonstub<TMethod>;
             return json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
         }
 
+        /** Create from lambda */
         template <typename LAMBDA>
-        static json_delegate create(const LAMBDA& instance) {
+        static json_delegate create_l(const LAMBDA& instance) {
             auto jsonstub = lambda_jsonstub<LAMBDA>;
             return json_delegate((void*)(&instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
         }
@@ -144,17 +148,17 @@ namespace rdl {
          * CALL OPERATOR
          *******************************************************************/
         int operator()(JsonArray& args, JsonVariant& ret) const {
-            assert(stub_->fnstub() != nullptr);
+            assert(stub_.fnstub() != nullptr);
             using FunctionT = json_stub::FnStubT;
-            FunctionT fn    = reinterpret_cast<FunctionT>(stub_->fnstub());
-            return (*fn)(stub_->object(), args, ret);
+            FunctionT fn    = reinterpret_cast<FunctionT>(stub_.fnstub());
+            return (*fn)(stub_.object(), args, ret);
         }
 
      protected:
         class json_stub stub_;
 
         json_delegate(class stub _stub) : stub_(_stub) {}
-        json_delegate(void* object, json_stub::FnStubT fnstub) : stub_(object, fnstub) {}
+        json_delegate(void* object, json_stub::FnStubT fnstub, bool returns_void) : stub_(object, fnstub, returns_void) {}
 
         template <typename R, typename... P>
         friend json_delegate<R, P...> as(class json_stub& stub);
@@ -272,7 +276,7 @@ namespace rdl {
         }
 
         //// error stub ////
-        inline static int error_stub(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+        inline static int error_stub(void* this_ptr, JsonArray& args, JsonVariant& ret) {
             assert(false);
             return ERROR_JSON_METHOD_NOT_FOUND;
         }

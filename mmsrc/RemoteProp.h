@@ -168,22 +168,18 @@ namespace rdl {
         RemoteProp_Base() : client_(nullptr) {}
         ClientT* client_;
         ExtrasT extra_;
-        delegate to_remote_delegate_;
-        delegate to_local_delegate_;
-        delegate::of<RetT<RemoteT>, LocalT> to_remote_fn_;
-        delegate::of<RetT<LocalT>, RemoteT> to_local_fn_;
+        delegate<RetT<RemoteT>, LocalT> to_remote_fn_;
+        delegate<RetT<LocalT>, RemoteT> to_local_fn_;
 
      public:
         /*	Link the property to the device and initialize from the propInfo. */
         virtual int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo, ExT... args) {
-            client_             = client;
-            extra_              = std::tie(args...);
-            to_remote_delegate_ = delegate::of<RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
-            to_remote_fn_       = to_remote_delegate_.as<RetT<RemoteT>, LocalT>();
-            to_local_delegate_  = delegate::of<RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
-            to_local_fn_        = to_local_delegate_.as<RetT<LocalT>, RemoteT>();
+            client_       = client;
+            brief_        = propInfo.brief(); // copy early for get/set before createAndLinkProp()
+            extra_        = std::tie(args...);
+            to_remote_fn_ = delegate<RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
+            to_local_fn_  = delegate<RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
 
-            brief_ = propInfo.brief();
             if (propInfo.hasInitialValue()) {
                 LocalT v = propInfo.initialValue();
                 set_impl(v);
