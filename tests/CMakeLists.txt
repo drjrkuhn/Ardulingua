@@ -38,10 +38,10 @@ catch_discover_tests(${SLIP_TEST_TARGET})
 catch_discover_tests(${DISPATCH_TEST_TARGET})
 
 
-# add_executable("devel1" main_devel1.cpp hrslip.h)
-# target_compile_features("devel1" PUBLIC cxx_std_11)
-# add_dependencies("devel1" ${CORELIB_NAME})
-# target_link_libraries("devel1" PRIVATE ${CORELIB_NAME})
+add_executable("devel1" devel1_main.cpp ../src/ServerProperty.h)
+target_compile_features("devel1" PUBLIC cxx_std_11)
+add_dependencies("devel1" ${CORELIB_NAME})
+target_link_libraries("devel1" PRIVATE ${CORELIB_NAME})
 
 # add_executable("devel2" main_devel2.cpp hrslip.h)
 # target_compile_features("devel2" PUBLIC cxx_std_11)

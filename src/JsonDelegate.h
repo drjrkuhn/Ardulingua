@@ -74,6 +74,10 @@ namespace rdl {
      public:
         using FnStubT = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
         json_stub() : stub_base(), returns_void_(true) {}
+        json_stub(json_stub& other) 
+        : stub_base(other.object_, other.fnstub_), returns_void_(other.returns_void_) {
+        }
+
         json_stub(void* object, FnStubT fnstub, bool returns_void)
             : stub_base(object, reinterpret_cast<stub_base::FnStubT>(fnstub)),
               returns_void_(returns_void) {}
@@ -157,7 +161,7 @@ namespace rdl {
      protected:
         class json_stub stub_;
 
-        json_delegate(class stub _stub) : stub_(_stub) {}
+        json_delegate(class json_stub mainstub) : stub_(mainstub) {}
         json_delegate(void* object, json_stub::FnStubT fnstub, bool returns_void) : stub_(object, fnstub, returns_void) {}
 
         template <typename R, typename... P>

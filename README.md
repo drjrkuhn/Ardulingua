@@ -69,8 +69,7 @@ The library contains a set of Arduino/C++11 compatible generic function delegate
 
 Delegates are based on ["The Impossibly Fast C++ Delegates"](https://www.codeproject.com/articles/11015/the-impossibly-fast-c-delegates) by Sergey A Kryukov.
 
-> ** WARNING **
-> Stubs and delegates do not use smart_pointers and have no destructors. They do not check if an object or function has gone out-of-context. Use them for permanent (top-level) or semi-permanent objects and functions that last the lifetime of the program. If you need function delegates with delete, move, etc, use std::function found in the STL header <functional>
+> WARNING: Stubs and delegates do not use smart_pointers and have no destructors. They do not check if an object or function has gone out-of-context. Use them for permanent (top-level) or semi-permanent objects and functions that last the lifetime of the program. If you need function delegates with delete, move, etc, use std::function found in the STL header <functional>
 
 # Remote properties
 
@@ -90,8 +89,8 @@ We prepend a single-character opcode to the property brief to denote a standard 
 |  !   | SET value                          | set   | `call<void,T,EX...>("!brief",t,ex...)`       |
 |  !   | NSET value - no reply              | set   | `notify<void,T,EX...>("!brief",t,ex...)`     |
 |  *   | ACT task                           | act   | `call<void,EX...>("*brief",ex...)`           |
-|  *   | NOTIFY task (DO without response)  | act   | `notify<void,EX...>("*brief",ex...)`         |
-|  --  |       SEQUENCE/ARRAY COMMANDS      | --    | --                                         |
+|  *   | NOTIFY task (ACT without response) | act   | `notify<void,EX...>("*brief",ex...)`         |
+|  --  |     **SEQUENCE/ARRAY COMMANDS**    | --    | --                                         |
 |  ^   | GET maximum size of seq array[^3]  | array | `call<long,EX...>("^brief",ex...)->long`     |
 |  #   | GET number of values in seq array  | array | `call<long,EX...>("#brief",ex...)->long`     |
 |  0   | CLEAR seq array                    | array | `notify<long,EX...>("0brief",ex...)->dummy`  |
