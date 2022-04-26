@@ -38,7 +38,7 @@ catch_discover_tests(${SLIP_TEST_TARGET})
 catch_discover_tests(${DISPATCH_TEST_TARGET})
 
 
-add_executable("devel1" devel1_main.cpp ../src/ServerProperty.h)
+add_executable("devel1" devel1_main.cpp )#../src/ServerProperty.h)
 target_compile_features("devel1" PUBLIC cxx_std_11)
 add_dependencies("devel1" ${CORELIB_NAME})
 target_link_libraries("devel1" PRIVATE ${CORELIB_NAME})

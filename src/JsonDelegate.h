@@ -90,7 +90,7 @@ namespace rdl {
         bool returns_void() const { return returns_void_; }
 
      protected:
-        const bool returns_void_;
+        bool returns_void_;
     }; // json_stub
 
     /************************************************************************
@@ -111,6 +111,8 @@ namespace rdl {
         json_delegate() 
         : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub), std::is_void<RTYPE>::value) {}
 
+        json_delegate(json_delegate& other) = default;
+
         bool operator==(const json_delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const json_delegate& other) const { return stub_ != other.stub_; }
 
@@ -124,7 +126,9 @@ namespace rdl {
         template <class C, RTYPE(C::*TMethod)(PARAMS...)>
         static json_delegate create(C* instance) {
             auto jsonstub = method_jsonstub<C, TMethod>;
-            return json_delegate(instance, reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
+            json_stub::FnStubT fs = reinterpret_cast<json_stub::FnStubT>(jsonstub);
+            bool isvoid = std::is_void<RTYPE>::value;
+            return json_delegate(reinterpret_cast<void*>(instance), fs, isvoid);
         }
 
         /** Create from const class method */
