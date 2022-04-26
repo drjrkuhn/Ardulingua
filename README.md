@@ -27,37 +27,37 @@ Simplified JSON-RPC scheme designed for fast lookup/access on microcontrollers. 
 ## Example communication streams
 
 RPC call with positional parameters
-```json
->>> {"m": "subtract", "p": [42, 23], "i": 1}
-<<< {"r": 19, "i": 1}
+```
+--> {"m": "subtract", "p": [42, 23], "i": 1}
+<-- {"r": 19, "i": 1}
 ```
 
 RPC call with 'void' return [SET]
-```json
+```
 --> {"m": "setfoo", "p": [42], "i": 2}
 <-- {"i": 2}
 ```
 
 RPC call with return and no parameters [GET]
-```json
+```
 --> {"m": "getfoo", "i": 3}
 <-- {"r": 42, "i": 3}
 ```
 
 RPC notification (no id means no reply requested)
-```json
+```
 --> {"m": "update", "p": [1,2,3,4,5]}
 --> {"m": "foobar"}
 ```
 
 RPC call with error return
-```json
+```
 --> {"m": "subtract", "p": [42], "i": 3}
 <-- {"e": -32600, "i": 3}
 ```
 
 RPC set-notify/get get pair [SETN-GET]
-```json
+```
 --> {"m": "setfoo", "p": [3.1999]}
 --> {"m": "gettfoo", "i": 4}
 <-- {"r": 3.2, "i": 4}
