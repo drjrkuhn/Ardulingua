@@ -170,6 +170,7 @@ namespace rdl {
         ExtrasT extra_;
         delegate<RetT<RemoteT>, LocalT> to_remote_fn_;
         delegate<RetT<LocalT>, RemoteT> to_local_fn_;
+        long cached_max_seq_size_;
 
      public:
         /*	Link the property to the device and initialize from the propInfo. */
@@ -177,6 +178,7 @@ namespace rdl {
             client_       = client;
             brief_        = propInfo.brief(); // copy early for get/set before createAndLinkProp()
             extra_        = std::tie(args...);
+            cached_max_seq_size_ = -1;  // trigger a get at the beginning
             to_remote_fn_ = delegate<RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
             to_local_fn_  = delegate<RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
 
@@ -278,8 +280,14 @@ namespace rdl {
                     pprop->SetSequenceable(0);
                 } else {
                     long max_size = 0;
-                    if ((ret = client_->call_get_tuple<long>(meth_str('^').c_str(), max_size, extras())) != DEVICE_OK)
-                        max_size = 0;
+                    if (cached_max_seq_size_ < 0) {
+                        if ((ret = client_->call_get_tuple<long>(meth_str('^').c_str(), max_size, extras())) != DEVICE_OK)
+                            max_size = 0;
+                        else
+                            cached_max_seq_size_ = max_size;
+                    } else {
+                        max_size = cached_max_seq_size_;
+                    }
                     pprop->SetSequenceable(static_cast<long>(max_size));
                 }
             } else if (isSequencable_ && action == MM::AfterLoadSequence) {
@@ -298,12 +306,13 @@ namespace rdl {
                     if ((ret = client_->notify_tuple(meth_str('+').c_str(), withextras(remotev))) != DEVICE_OK) {
                         return ret;
                     }
-                    if ((i + 1) % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || (i + 1) == seqsize) {
+                    int size = i+1;
+                    if (size % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || size == seqsize) {
                         // verify the current size
                         if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != ERROR_OK) {
                             return ret;
                         }
-                        if (remotesize != i) {
+                        if (size != remotesize) {
                             return ERR_WRITE_FAILED;
                         }
                     }

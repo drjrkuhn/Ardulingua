@@ -241,7 +241,6 @@ namespace rdl {
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
             DCS(logger_.print("\tdeserialized"); logger_.println(msgdoc));
-            id = 37;
             if (!msgdoc.containsKey(RK_METHOD))
                 return ERROR_JSON_INVALID_REQUEST;
             method = msgdoc[RK_METHOD].as<STR>();
