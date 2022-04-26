@@ -28,8 +28,8 @@ Simplified JSON-RPC scheme designed for fast lookup/access on microcontrollers. 
 
 RPC call with positional parameters
 ```json
---> {"m": "subtract", "p": [42, 23], "i": 1}
-<-- {"r": 19, "i": 1}
+>>> {"m": "subtract", "p": [42, 23], "i": 1}
+<<< {"r": 19, "i": 1}
 ```
 
 RPC call with 'void' return [SET]
