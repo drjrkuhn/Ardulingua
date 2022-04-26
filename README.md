@@ -174,9 +174,9 @@ Decoding works in reverse by shrinking the packet and replacing the escaped code
 
 ## SLIP+NULL Encoding
 
-This library has another SLIP+NULL encoder that replaces `END` and `ESC` as above, but _also_ searches for and replaces any `NULL` characters (`\0`) in the middle of the packet with a two-byte `ESC-EscapedNULL` sequence. That way we can guarantee no `NULL` bytes in the encoded packet. Serial communication handlers [^1] that only deal with C-strings (ending in `\0`) can safely handle data containing the byte zero after the packet has been encoded to eliminate any internal zeros. 
+This library has another SLIP+NULL encoder that replaces `END` and `ESC` as above, but _also_ searches for and replaces any `NULL` characters (`\0`) in the middle of the packet with a two-byte `ESC-EscapedNULL` sequence. That way we can guarantee no `NULL` bytes in the encoded packet. Serial communication handlers [^5] that only deal with C-strings (ending in `\0`) can safely handle data containing the byte zero after the packet has been encoded to eliminate any internal zeros. 
 
-[^1]: I'm looking at you, [MicroManager](https://micro-manager.org/) device driver `GetSerialAnswer()`.
+[^5]: I'm looking at you, [MicroManager](https://micro-manager.org/) device driver `GetSerialAnswer()`.
 
 
 | Char Code     | Octal   | Hex    | encoded as             |
