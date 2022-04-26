@@ -69,11 +69,11 @@ Remote properties are layered on top of this compact JSON-RPC protocol. This sch
 
 ## Briefs and Property Codes
 
-Property get/set/sequencing rely on JsonDelegate meth_str names with special prepended codes. The remote property name should be a short, unique character sequence like "prop". We will call this abbreviation of the property name the property `brief`.
+Property get/set/sequencing rely on JsonDelegate method names with special prepended codes. The remote property name should be a short, unique character sequence like "prop". We will call this abbreviation of the property name the property `brief`.
 
 We prepend a single-character opcode to the property brief to denote a standard property operation. The server is responsible for dispatching the coded brief to the appropriate function. A possible mechanism is detailed below, but dispatch tables are flexible and can use pure callback functions, class methods, or lambda with capture.
 
-> NOTE: codes are prepended rather than appended to make string matching terminate earlier during dispatch map method string lookup. `brief` meth_str tags should be kept to a few characters for the same reason. Even a fast hash-map will need to loop through the entire string to compute the hash-value for lookup. So use a brief meth_str tag like "dacv" rather than "MyDACOutputValueInVolts".
+> NOTE: codes are prepended rather than appended to make string matching terminate earlier during dispatch map method string lookup. `brief` method tags should be kept to a few characters for the same reason. Even a fast hash-map will need to loop through the entire string to compute the hash-value for lookup. So use a brief method tag like "dacv" rather than "MyDACOutputValueInVolts".
 
 |opcode| operation                          |meth[^1]| server signature[^2]                      |
 |:----:|:-----------------------------------|:-----:|:-------------------------------------------|
@@ -82,23 +82,24 @@ We prepend a single-character opcode to the property brief to denote a standard 
 |  !   | NSET value - no reply              | set   | notify<void,T,EX...>("!brief",t,ex...)     |
 |  *   | ACT task                           | act   | call<void,EX...>("*brief",ex...)           |
 |  *   | NOTIFY task (DO without response)  | act   | notify<void,EX...>("*brief",ex...)         |
-|  --  | ==== SEQUENCE/ARRAY COMMANDS ====  | --    | --                                         |
-|  ^   | GET maximum size of seq array      | array | call<long,EX...>("^brief",ex...)->long |
-|  #   | GET number of values in seq array  | array | call<long,EX...>("#brief",ex...)->long |
-|  0   | CLEAR seq array                    | array | notify<long,EX...>("0brief",ex...)->dummy|
+|  --  |       SEQUENCE/ARRAY COMMANDS      | --    | --                                         |
+|  ^   | GET maximum size of seq array[^3]  | array | call<long,EX...>("^brief",ex...)->long     |
+|  #   | GET number of values in seq array  | array | call<long,EX...>("#brief",ex...)->long     |
+|  0   | CLEAR seq array                    | array | notify<long,EX...>("0brief",ex...)->dummy  |
 |  +   | ADD value to sequence array        | set   | notify<void,T,EX...>("+brief",ex...)       |
 |  *   | ACT task doubles as start seq.     | act   | call<void,EX...>("*brief",ex...)           |
 |  *   | NOTIFY task to start seq.          | act   | notify<void,EX...>("*brief",ex...)         |
-|  ~   | STOP sequence                      | act   | call<void,EX...>("~brief",ex...)           |
-|  ~   | STOP sequence                      | act   | notify<void,EX...>("~brief",ex...)         |
+|  \~  | STOP sequence                      | act   | call<void,EX...>("\~brief",ex...)          |
+|  \~  | STOP sequence                      | act   | notify<void,EX...>("\~brief",ex...)        |
 
-[^1]: meth is the client meth_str whose parameters match the call/notify signature
-[^2]: Signature of the server meth_str. T is the property type on the device, EX... are an 
+[^1]: meth is the client method whose parameters match the call/notify signature
+[^2]: Signature of the server method. T is the property type on the device, EX... are an 
 optional set of extra parameters such as channel number
+[^3]: Micro-manager makes several calls to GET maximum sequence size. Maximum sequence size is checked only once and the value is cached by the device driver.
 
 ## Client transform/dispatch methods
 
-From the signature table above, we need four local methods for transforming MM Properties into eventual RPC calls on the server. The client meth_str might also transform the MM::PropertyType into the type T required by the server. Each meth_str type includes an optional set of compile-time extra parameters such as channel number, pin number, etc. What the server does with this iinformation depends on the meth_str opcode.
+From the signature table above, we need four local method signatures for transforming MM Properties into eventual RPC calls on the server. The client method might also transform the MM::PropertyType into the type T required by the server. Each method type includes an optional set of compile-time extra parameters such as channel number, pin number, etc. What the server does with this information depends on the method opcode.
 
 - get: gets the remote property value
 - set: sets the remote property value
@@ -107,9 +108,7 @@ From the signature table above, we need four local methods for transforming MM P
 
 ## Set/Get pair and volatile remote properties
 
-The normal 'SET' call meth_str doesn't return the value actually set on the remote device - just an OK (returns caller id) or error number.
-
-If we want to verify and retrive the value that was actually set to the device We can use a NSET then GET. A normal SET-GET RPC pair would need to wait for two replies, one from the SET call, one from the GET call. Instead we can use NSET (notify-SET, i.e. no reply) followed immediately by a GET call.
+The normal 'SET' call method doesn't return the value actually set on the remote device - just an OK (returns caller id) or error number. If we want to verify and retrive the value that was actually set to the device We can use a NSET then GET. A normal SET-GET RPC pair would need to wait for two replies, one from the SET call, one from the GET call. Instead we can use NSET (notify-SET, i.e. no reply) followed immediately by a GET call.
 
 A **volatile** remote property can cange behind-the-scenes. We cannot rely on a cached value and the remote property might not preserve the exact value of a SET operation. Volatile properties must:
 - Always Use NSET-GET pairs when setting
@@ -123,7 +122,7 @@ Clients should first send a `^prop` GET call to query the maximum array size on 
 
 ## Server decoding
 
-Lambda methods in the server's dispatch map can make the process of routing opcodes simpler. The server can hard-code each coded meth_str call with a series of key/lambda function pairs. 
+Lambda methods in the server's dispatch map can make the process of routing opcodes simpler. The server can hard-code each coded method call with a series of key/lambda function pairs. 
 
 For example in pseudo-code, a property with a value and possible sequence might be coded as lambda captures (pseudocode):
 ```cpp
