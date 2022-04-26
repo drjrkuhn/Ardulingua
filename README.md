@@ -63,6 +63,15 @@ RPC set-notify/get get pair [SETN-GET]
 <-- {"r": 3.2, "i": 4}
 ```
 
+# Function delegates
+
+The library contains a set of Arduino/C++11 compatible generic function delegates and stubs. There is a separate set of delegates and stubs designed for dispatching on ArduinoJson documents.
+
+Delegates are based on ["The Impossibly Fast C++ Delegates"](https://www.codeproject.com/articles/11015/the-impossibly-fast-c-delegates) by Sergey A Kryukov.
+
+> ** WARNING **
+> Stubs and delegates do not use smart_pointers and have no destructors. They do not check if an object or function has gone out-of-context. Use them for permanent (top-level) or semi-permanent objects and functions that last the lifetime of the program. If you need function delegates with delete, move, etc, use std::function found in the STL header <functional>
+
 # Remote properties
 
 Remote properties are layered on top of this compact JSON-RPC protocol. This scheme is designed specifically for micro-manager Device Properties.
@@ -77,20 +86,20 @@ We prepend a single-character opcode to the property brief to denote a standard 
 
 |opcode| operation                          |meth[^1]| server signature[^2]                      |
 |:----:|:-----------------------------------|:-----:|:-------------------------------------------|
-|  ?   | GET value                          | get   | call<T,EX...>("?brief",ex...)->T           |
-|  !   | SET value                          | set   | call<void,T,EX...>("!brief",t,ex...)       |
-|  !   | NSET value - no reply              | set   | notify<void,T,EX...>("!brief",t,ex...)     |
-|  *   | ACT task                           | act   | call<void,EX...>("*brief",ex...)           |
-|  *   | NOTIFY task (DO without response)  | act   | notify<void,EX...>("*brief",ex...)         |
+|  ?   | GET value                          | get   | `call<T,EX...>("?brief",ex...)->T`           |
+|  !   | SET value                          | set   | `call<void,T,EX...>("!brief",t,ex...)`       |
+|  !   | NSET value - no reply              | set   | `notify<void,T,EX...>("!brief",t,ex...)`     |
+|  *   | ACT task                           | act   | `call<void,EX...>("*brief",ex...)`           |
+|  *   | NOTIFY task (DO without response)  | act   | `notify<void,EX...>("*brief",ex...)`         |
 |  --  |       SEQUENCE/ARRAY COMMANDS      | --    | --                                         |
-|  ^   | GET maximum size of seq array[^3]  | array | call<long,EX...>("^brief",ex...)->long     |
-|  #   | GET number of values in seq array  | array | call<long,EX...>("#brief",ex...)->long     |
-|  0   | CLEAR seq array                    | array | notify<long,EX...>("0brief",ex...)->dummy  |
-|  +   | ADD value to sequence array        | set   | notify<void,T,EX...>("+brief",ex...)       |
-|  *   | ACT task doubles as start seq.     | act   | call<void,EX...>("*brief",ex...)           |
-|  *   | NOTIFY task to start seq.          | act   | notify<void,EX...>("*brief",ex...)         |
-|  \~  | STOP sequence                      | act   | call<void,EX...>("\~brief",ex...)          |
-|  \~  | STOP sequence                      | act   | notify<void,EX...>("\~brief",ex...)        |
+|  ^   | GET maximum size of seq array[^3]  | array | `call<long,EX...>("^brief",ex...)->long`     |
+|  #   | GET number of values in seq array  | array | `call<long,EX...>("#brief",ex...)->long`     |
+|  0   | CLEAR seq array                    | array | `notify<long,EX...>("0brief",ex...)->dummy`  |
+|  +   | ADD value to sequence array        | set   | `notify<void,T,EX...>("+brief",ex...)`       |
+|  *   | ACT task doubles as start seq.     | act   | `call<void,EX...>("*brief",ex...)`           |
+|  *   | NOTIFY task to start seq.          | act   | `notify<void,EX...>("*brief",ex...)`         |
+|  \~  | STOP sequence                      | act   | `call<void,EX...>("\~brief",ex...)`          |
+|  \~  | STOP sequence                      | act   | `notify<void,EX...>("\~brief",ex...)`        |
 
 [^1]: meth is the client method whose parameters match the call/notify signature
 [^2]: Signature of the server method. T is the property type on the device, EX... are an 
