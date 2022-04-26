@@ -178,7 +178,7 @@ namespace rdl {
             client_       = client;
             brief_        = propInfo.brief(); // copy early for get/set before createAndLinkProp()
             extra_        = std::tie(args...);
-            cached_max_seq_size_ = -1;  // trigger a get at the beginning
+            cached_max_seq_size_ = -1;  // trigger a get max size at the beginning
             to_remote_fn_ = delegate<RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
             to_local_fn_  = delegate<RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
 
@@ -281,6 +281,10 @@ namespace rdl {
                 } else {
                     long max_size = 0;
                     if (cached_max_seq_size_ < 0) {
+                        // IsSequenceable is called multiple times throughout a properties lifetime,
+                        // often repeately. Rather than calling the remote device again and again,
+                        // we ONLY get the max sequence size once and cache it.
+                        // **WARNING** assumes each remote property has a static maximum sequence size
                         if ((ret = client_->call_get_tuple<long>(meth_str('^').c_str(), max_size, extras())) != DEVICE_OK)
                             max_size = 0;
                         else
