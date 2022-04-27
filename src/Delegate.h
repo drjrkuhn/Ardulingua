@@ -126,6 +126,37 @@ namespace rdl {
 
         /********************************************************************
          * FACTORIES
+         * 
+         * NOTE on virtual functions
+         * -------------------------
+         * Class method function pointers are tricky when dealing with virtual
+         * functions and derived classes. In create<Class,&Class::method>
+         * Class::method must point to the exact overriden method you want
+         * to call.
+         * 
+         * @code {.cpp}
+         *   struct A { int val;
+         *       virtual int foo() { return val; }
+         *       virtual int bar() { return -val; }
+         *   };
+         *
+         *   struct B : public A {
+         *       virtual int bar() { return -4 * val; }
+         *   };
+         * 
+         *   int main() {
+         *       A aa; aa.val = 2;
+         *       B bb; bb.val = 10;
+         * 
+         *       delegate<int>::create<A, &A::foo>(&aa)(); // aa.A::foo -> 2 
+         *       delegate<int>::create<A, &A::bar>(&aa)(); // aa.A::bar -> -2
+         * 
+         *       delegate<int>::create<B,&B::foo>(&bb)(); // compiler error: not found
+         *       delegate<int>::create<A, &A::foo>(&bb)(); // bb.A::foo -> 10
+         *       delegate<int>::create<B, &B::bar>(&bb)(); // bb.B::bar -> -40
+         *       return 0;
+         *   }
+         * @endcode
          *******************************************************************/
         
         /** Create from class method */

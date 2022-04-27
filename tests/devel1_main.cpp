@@ -2,7 +2,7 @@
 #include <map>
 #include <string>
 
-#if 1
+#if 0
     #include <JsonDelegate.h>
     #include <ServerProperty.h>
 
@@ -13,23 +13,16 @@ using MapT = std::map<std::string, rdl::json_stub>;
 // template <class DT, typename T, class StrT, class MapT, long MAX_SIZE>
 // class simple_sequencable_base : public simple_sequencable_base<simple_prop<DT,T,StrT,MapT,MAX_SIZE>, T, StrT, MapT> {
 
-template <typename T, long MAX_SIZE>
-class simple_prop : public simple_prop_base<simple_prop<T, MAX_SIZE>, T, std::string, MapT, MAX_SIZE> {
- public:
-    using BaseT = simple_prop_base<simple_prop<T, MAX_SIZE>, T, std::string, MapT, MAX_SIZE>;
+// template <typename T, long MAX_SIZE>
+// class simple_prop : public simple_prop_base<T, std::string, MAX_SIZE> {
+//  public:
+//     using BaseT = simple_prop_base<T, std::string, MAX_SIZE>;
 
-    simple_prop(const std::string& brief_name, const T initial, bool sequencable = false)
-        : BaseT(brief_name, initial, sequencable) {}
-    using BaseT::get;
-    using BaseT::set;
-    using BaseT::max_size;
-    using BaseT::clear;
-    using BaseT::add;
-    using BaseT::start;
-    using BaseT::sequencable;
-    using BaseT::message;
-    using BaseT::add_to;
-};
+//     simple_prop(const std::string& brief_name, const T initial, bool sequencable = false)
+//         : BaseT(brief_name, initial, sequencable) {}
+// };
+
+template<typename T> struct TD;
 
 int main() {
 
@@ -37,13 +30,19 @@ int main() {
 
     // MapT map;
 
-    using S = simple_prop<int, 64>;
+    typedef simple_prop_base<int, std::string, 64> SP;
 
-    S foo("foo", 10);
+    SP foo("foo", 10);
     json_delegate<void, int> jd;
-    typedef void (S::*TMethod)(int);
-    TMethod meth = &simple_prop<int, 64>::set;
-    jd           = json_delegate<void,int>::template create_m<S, meth>(&foo);
+    typedef void (SP::*TMethod)(int);
+    TMethod meth = &SP::set;
+
+    TD<decltype(foo)> td1;
+    TD<decltype(meth)> td2;
+    // typename decltype( simple_prop_base<int, std::string, 64> )::_;
+    // typename decltype(&simple_prop_base<int, std::string, 64>::set)::_;
+
+    auto jd2 = json_delegate<void,int>::create_m<SP, &SP::set >(&foo);
 
     // foo.add_to(map);
 
@@ -53,7 +52,7 @@ int main() {
     return 0;
 }
 
-#else
+#elif 0
 
 template <class D, typename T, typename S>
 struct Base {
@@ -81,6 +80,51 @@ int main() {
     cout << d.get() << endl;
     cout << d.get_s() << endl;
 
+    return 0;
+}
+
+#else
+
+    #include <Delegate.h>
+
+struct A {
+    int val;
+    virtual int foo() {
+        std::cout << "A::foo ";
+        return val;
+    }
+    virtual int bar() {
+        std::cout << "A::bar ";
+        return -val;
+    }
+};
+
+struct B : public A {
+    virtual int bar() {
+        std::cout << "B::bar ";
+        return -4 * val;
+    }
+};
+
+int main() {
+    using namespace std;
+    using namespace rdl;
+
+    A aa;
+    aa.val = 2;
+    B bb;
+    bb.val = 10;
+
+    cout << "aa.A::foo  " << delegate<int>::create<A, &A::foo>(&aa)() << endl; // aa.A::foo -> 2
+    cout << "aa.A::bar  " << delegate<int>::create<A, &A::bar>(&aa)() << endl; // aa.A::bar -> -2
+
+    cout << "bb.A::foo  " << delegate<int>::create<A, &A::foo>(&bb)() << endl; // bb.A::foo -> 10
+    cout << "bb.A::bar  " << delegate<int>::create<A, &A::bar>(&bb)() << endl; // bb.A::bar -> -40
+
+    // cout << "bb.B::foo  " << delegate<int>::create<B, &B::foo>(&bb)() << endl; // compiler error
+    cout << "bb.B::bar  " << delegate<int>::create<B, &B::bar>(&bb)() << endl; // bb.B::bar -> -40
+
+    // cout << "aa.B::bar  " << delegate<int>::create<B, &B::bar>(&aa)() << endl; // compiler error
     return 0;
 }
 

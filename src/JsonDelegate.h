@@ -120,15 +120,44 @@ namespace rdl {
 
         /********************************************************************
          * FACTORIES
+         * 
+         * NOTE on virtual functions
+         * -------------------------
+         * Class method function pointers are tricky when dealing with virtual
+         * functions and derived classes. In create<Class,&Class::method>
+         * Class::method must point to the exact overriden method you want
+         * to call.
+         * 
+         * @code {.cpp}
+         *   struct A { int val;
+         *       virtual int foo() { return val; }
+         *       virtual int bar() { return -val; }
+         *   };
+         *
+         *   struct B : public A {
+         *       virtual int bar() { return -4 * val; }
+         *   };
+         * 
+         *   int main() {
+         *       A aa; aa.val = 2;
+         *       B bb; bb.val = 10;
+         * 
+         *       json_delegate<int>::create<A, &A::foo>(&aa)(); // aa.A::foo -> 2 
+         *       json_delegate<int>::create<A, &A::bar>(&aa)(); // aa.A::bar -> -2
+         * 
+         *       json_delegate<int>::create<B,&B::foo>(&bb)(); // compiler error: not found
+         *       json_delegate<int>::create<A, &A::foo>(&bb)(); // bb.A::foo -> 10
+         *       json_delegate<int>::create<B, &B::bar>(&bb)(); // bb.B::bar -> -40
+         *       return 0;
+         *   }
+         * @endcode
          *******************************************************************/
 
         /** Create from class method */
         template <class C, RTYPE(C::*TMethod)(PARAMS...)>
         static json_delegate create(C* instance) {
             auto jsonstub = method_jsonstub<C, TMethod>;
-            json_stub::FnStubT fs = reinterpret_cast<json_stub::FnStubT>(jsonstub);
-            bool isvoid = std::is_void<RTYPE>::value;
-            return json_delegate(reinterpret_cast<void*>(instance), fs, isvoid);
+            return json_delegate(const_cast<C*>(instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
         }
 
         /** Create from const class method */
