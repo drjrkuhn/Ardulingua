@@ -63,10 +63,10 @@ namespace rdl {
      * Take a JsonArray reference containing an array json_delegate parameters
      *
      *                          ** WARNING **
-     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * Stubs and delegates do not use smart_pointers and have no destructors.
      * They do not check if an object or function has gone out-of-context. Use
-     * them for permanent (top-level) or semi-permanent objects and functions 
-     * that last the lifetime of the program. 
+     * them for permanent (top-level) or semi-permanent objects and functions
+     * that last the lifetime of the program.
      * If you need function delegates with delete, move, etc, use std::function
      * found in the STL header <functional>
      ***********************************************************************/
@@ -74,9 +74,7 @@ namespace rdl {
      public:
         using FnStubT = int (*)(void* this_ptr, JsonArray&, JsonVariant&);
         json_stub() : stub_base(), returns_void_(true) {}
-        json_stub(json_stub& other) 
-        : stub_base(other.object_, other.fnstub_), returns_void_(other.returns_void_) {
-        }
+        // assume default copy constructor and assignment operator
 
         json_stub(void* object, FnStubT fnstub, bool returns_void)
             : stub_base(object, reinterpret_cast<stub_base::FnStubT>(fnstub)),
@@ -97,10 +95,10 @@ namespace rdl {
      * Typed jsondelegate stubs
      *
      *                          ** WARNING **
-     * Stubs and delegates do not use smart_pointers and have no destructors. 
+     * Stubs and delegates do not use smart_pointers and have no destructors.
      * They do not check if an object or function has gone out-of-context. Use
-     * them for permanent (top-level) or semi-permanent objects and functions 
-     * that last the lifetime of the program. 
+     * them for permanent (top-level) or semi-permanent objects and functions
+     * that last the lifetime of the program.
      * If you need function delegates with delete, move, etc, use std::function
      * found in the STL header <functional>
      ***********************************************************************/
@@ -108,10 +106,10 @@ namespace rdl {
     class json_delegate {
      public:
         // no default constructor
-        json_delegate() 
-        : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub), std::is_void<RTYPE>::value) {}
+        json_delegate() : json_delegate(nullptr, reinterpret_cast<json_stub::FnStubT>(error_stub),
+                                        std::is_void<RTYPE>::value) {}
 
-        json_delegate(json_delegate& other) = default;
+        // assume default copy constructor and assignment operator
 
         bool operator==(const json_delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const json_delegate& other) const { return stub_ != other.stub_; }
@@ -120,14 +118,14 @@ namespace rdl {
 
         /********************************************************************
          * FACTORIES
-         * 
+         *
          * NOTE on virtual functions
          * -------------------------
          * Class method function pointers are tricky when dealing with virtual
          * functions and derived classes. In create<Class,&Class::method>
          * Class::method must point to the exact overriden method you want
          * to call.
-         * 
+         *
          * @code {.cpp}
          *   struct A { int val;
          *       virtual int foo() { return val; }
@@ -137,14 +135,14 @@ namespace rdl {
          *   struct B : public A {
          *       virtual int bar() { return -4 * val; }
          *   };
-         * 
+         *
          *   int main() {
          *       A aa; aa.val = 2;
          *       B bb; bb.val = 10;
-         * 
-         *       json_delegate<int>::create<A, &A::foo>(&aa)(); // aa.A::foo -> 2 
+         *
+         *       json_delegate<int>::create<A, &A::foo>(&aa)(); // aa.A::foo -> 2
          *       json_delegate<int>::create<A, &A::bar>(&aa)(); // aa.A::bar -> -2
-         * 
+         *
          *       json_delegate<int>::create<B,&B::foo>(&bb)(); // compiler error: not found
          *       json_delegate<int>::create<A, &A::foo>(&bb)(); // bb.A::foo -> 10
          *       json_delegate<int>::create<B, &B::bar>(&bb)(); // bb.B::bar -> -40
@@ -154,7 +152,7 @@ namespace rdl {
          *******************************************************************/
 
         /** Create from class method */
-        template <class C, RTYPE(C::*TMethod)(PARAMS...)>
+        template <class C, RTYPE (C::*TMethod)(PARAMS...)>
         static json_delegate create(C* instance) {
             auto jsonstub = method_jsonstub<C, TMethod>;
             return json_delegate(const_cast<C*>(instance), reinterpret_cast<json_stub::FnStubT>(jsonstub), std::is_void<RTYPE>::value);
@@ -197,8 +195,9 @@ namespace rdl {
         json_delegate(class json_stub mainstub) : stub_(mainstub) {}
         json_delegate(void* object, json_stub::FnStubT fnstub, bool returns_void) : stub_(object, fnstub, returns_void) {}
 
-        template <typename R, typename... P>
-        friend json_delegate<R, P...> as(class json_stub& stub);
+        // NO NEED for as. Just use the json_delegate stub constructor
+        // template <typename R, typename... P>
+        // friend json_delegate<R, P...> as(class json_stub& stub);
 
         /********************************************************************
          * STUB IMPLEMENTATIONS
@@ -320,10 +319,10 @@ namespace rdl {
 
     }; // jsondelegate
 
-    template <typename RTYPE, typename... PARAMS>
-    json_delegate<RTYPE, PARAMS...> as(json_stub& stub) {
-        return json_delegate<RTYPE, PARAMS...>(stub);
-    }
+    // template <typename RTYPE, typename... PARAMS>
+    // json_delegate<RTYPE, PARAMS...> as(json_stub& stub) {
+    //     return json_delegate<RTYPE, PARAMS...>(stub);
+    // }
 
 } /* namespace rdl */
 

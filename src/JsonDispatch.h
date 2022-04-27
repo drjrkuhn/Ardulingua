@@ -14,8 +14,10 @@
 
     #define JSONRPC_USE_SHORT_KEYS 1
     // #define JSONRPC_USE_MSGPACK 1
-    #define JSONRPC_DEBUG_CLIENTSERVER 1
 
+    #define JSONRPC_DEBUG_CLIENTSERVER 1
+    #define JSONRPC_DEBUG_SERVER_DISPATCH 1
+    
     #if defined(JSONRPC_USE_SHORT_KEYS) && (JSONRPC_USE_SHORT_KEYS != 0)
         #define JSONRPC_USE_SHORT_KEYS 1
     #else
@@ -32,6 +34,12 @@
         #define JSONRPC_DEBUG_CLIENTSERVER 1
     #else
         #define JSONRPC_DEBUG_CLIENTSERVER 0
+    #endif
+
+    #if defined(JSONRPC_DEBUG_SERVER_DISPATCH) && (JSONRPC_DEBUG_SERVER_DISPATCH != 0)
+        #define JSONRPC_DEBUG_SERVER_DISPATCH 1
+    #else
+        #define JSONRPC_DEBUG_SERVER_DISPATCH 0
     #endif
 
 namespace rdl {
@@ -75,7 +83,7 @@ namespace rdl {
      * ### RPC call with error return
      * --> {"m": "subtract", "p": [42], "i": 3}
      * <-- {"e": -32600, "i": 3}
-     * 
+     *
      * ## RPC set-notify/get get pair [SETN-GET]
      * --> {"m": "setfoo", "p": [3.1999]}
      * --> {"m": "gettfoo", "i": 4}
@@ -126,6 +134,14 @@ namespace rdl {
         #define DCS(block) \
             { ; }
     #endif
+    #if JSONRPC_DEBUG_SERVER_DISPATCH
+        #define DSDISP(block) \
+            { block; }
+    #else
+        #define DSDISP(block) \
+            { ; }
+    #endif
+
 
     constexpr size_t BUFFER_SIZE = 256;
 
@@ -149,14 +165,13 @@ namespace rdl {
     /************************************************************************
      * PROTOCOL BASE
      ***********************************************************************/
-    template <class S, class STR, class LOG = logger_base<Print_null<STR>, STR>>
+    template <class IS, class OS, class STR, class LOG = logger_base<Print_null<STR>, STR>>
     class protocol_base {
      public:
-        protocol_base(S& istream, S& ostream, uint8_t* buffer_data, size_t buffer_size, int max_retries = 3)
+        protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size, int max_retries = 3)
             : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
             max_retries_ = max_retries;
         }
-        
 
         template <typename... PARAMS>
         int toJsonArray(JsonArray& params, PARAMS... args) {
@@ -303,8 +318,8 @@ namespace rdl {
         }
 
      protected:
-        S& istream_;
-        S& ostream_;
+        IS& istream_;
+        OS& ostream_;
         svc::buffer buffer_;
         int max_retries_;
         LOG EMPTY_LOGGER;
@@ -314,13 +329,13 @@ namespace rdl {
     /************************************************************************
      * SERVER
      ***********************************************************************/
-    template <class S, class MAP, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
-    class jsonserver : public protocol_base<S, STR, LOG> {
+    template <class IS, class OS, class MAP, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
+    class json_server : public protocol_base<IS, OS, STR, LOG> {
      public:
-        typedef protocol_base<S, STR, LOG> BaseT;
+        typedef protocol_base<IS, OS, STR, LOG> BaseT;
         using BaseT::logger;
 
-        jsonserver(S& istream, S& ostream, MAP& map, int max_retries = 2)
+        json_server(IS& istream, OS& ostream, MAP& map, int max_retries = 2)
             : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries),
               dispatch_map_(map) {
         }
@@ -334,6 +349,10 @@ namespace rdl {
             // read message
             size_t msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
             DCS(logger_.print("SERVER << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
+            return process(buffer_.data(), msgsize);
+        }
+
+        int process(const char* message, size_t msgsize) {
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -350,7 +369,14 @@ namespace rdl {
                 err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
                 if (err != ERROR_OK) break;
                 json_stub jstub = mapit->second;
-                err = jstub.call(args, result);
+                err             = jstub.call(args, result);
+                DSDISP(logger_.print("SERVER called "); logger_.print(mapit->first); serializeJson(args, logger_.printer()));
+                DSDISP(
+                    if (err != ERROR_OK) {
+                        logger_.print(" -> ERROR "); logger_.println(err);
+                    } else {
+                        logger_.print(" -> "); logger_.println(result.as<const char*>());
+                    });
                 break;
             }
             if (id >= 0) { // server wants reply
@@ -383,13 +409,13 @@ namespace rdl {
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <class S, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
-    class jsonclient : protocol_base<S, STR, LOG> {
+    template <class IS, class OS, class STR, size_t BUFSIZE, class LOG = logger_base<Print_null<STR>, STR>>
+    class json_client : protocol_base<IS, OS, STR, LOG> {
      public:
-        typedef protocol_base<S, STR, LOG> BaseT;
+        typedef protocol_base<IS, OS, STR, LOG> BaseT;
         using BaseT::logger;
 
-        jsonclient(S& istream, S& ostream, long reply_wait_ms = 200, int max_retries = 2)
+        json_client(IS& istream, OS& ostream, long reply_wait_ms = 200, int max_retries = 2)
             : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries), // buffer_(buffer_data_, BUFSIZE),
               reply_wait_ms_(reply_wait_ms), nextid_(1) {
         }
@@ -419,7 +445,7 @@ namespace rdl {
         /** Call with no return and tuple of parameters */
         template <typename TUPLE>
         inline int call_tuple(const char* method, TUPLE args) {
-            return call_tuple_impl(method, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+            return call_tuple_impl(method, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
         template <typename RTYPE, typename... PARAMS>
@@ -447,7 +473,7 @@ namespace rdl {
         /** Call with return value and tuple of parameters */
         template <typename RTYPE, typename TUPLE>
         inline int call_get_tuple(const char* method, RTYPE& ret, TUPLE args) {
-            return call_get_tuple_impl<RTYPE>(method, ret, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+            return call_get_tuple_impl<RTYPE>(method, ret, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
         template <typename... PARAMS>
@@ -458,7 +484,7 @@ namespace rdl {
         /** Notify (no return) with tulple of parameters */
         template <typename TUPLE>
         inline int notify_tuple(const char* method, TUPLE args) {
-            return notify_tuple_impl(method, args, std::make_index_sequence< std::tuple_size<TUPLE>{} >{});
+            return notify_tuple_impl(method, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
         }
 
      protected:

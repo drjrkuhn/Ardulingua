@@ -3,14 +3,54 @@
 #ifndef __SERVERPROPERTY_H__
     #define __SERVERPROPERTY_H__
 
+    #include <JsonDelegate.h>
+
 namespace rdl {
 
+    /************************************************************************
+     * Property dispatch methods that are designed to work either with
+     * arduino::String or std::string as the property lookup.
+     * 
+     * The prop_any_base class is the most flexible, allowing extra template
+     * parameters for extra property coding.
+     * 
+     * The 
+     ************************************************************************/
+
+
+    /************************************************************************
+     * Flexible virtual function interface to hold a property on a json_server
+     *
+     * @tparam T        property value type
+     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     * @tparam ExT      extra values such as channel, etc.
+     ************************************************************************/
     template <typename T, class StrT, typename... ExT>
     class prop_any_base {
      public:
-        prop_any_base(const StrT& brief_name) : brief_(brief_name) {}
+        /** Absolute base class type, used for virtual dispatch */
+        using PropAnyT = prop_any_base<T, StrT, ExT...>;
 
-        // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
+        prop_any_base(const StrT& brief_name) : brief_(brief_name) {}
+        prop_any_base(prop_any_base& other) = default;
+
+        bool operator==(const prop_any_base& other) const { return brief_ == other.brief_; }
+        bool operator!=(const prop_any_base& other) const { return brief_ != other.brief_; }
+
+        /**
+         * Generalized Function signatures for delegates.
+         * Signatures are used for dispatch map creation.
+         * @tparam DelegateT    either delegate or json_delegate
+         */
+        struct json_delegates {
+            using get    = json_delegate<T, ExT...>;
+            using set    = json_delegate<void, const T, ExT...>;
+            using array  = json_delegate<long, ExT...>;
+            using action = json_delegate<void, ExT...>;
+            using flag   = json_delegate<bool, ExT...>;
+        };
+
+        ////// DISPATCH INTERFACE //////
         virtual T get(ExT... ex) const             = 0;
         virtual void set(const T value, ExT... ex) = 0;
         virtual long max_size(ExT... ex) const     = 0;
@@ -23,44 +63,80 @@ namespace rdl {
 
         StrT message(const char opcode) { return opcode + brief_; }
 
-        template <class MapT>
-        int add_to(MapT& map) {
-            // using PairT   = typename MapT::value_type;
-            using S   = prop_any_base<T, StrT, ExT...>;
-            auto sget = &S::get;
-            // int startsize = map.size();
-            // auto jd = json_delegate<T, ExT...>::template create<S, &S::get>(this);
-            json_delegate<void, T, ExT...> jd;
-            jd = json_delegate<void, T, ExT...>::template create<S, &S::set>(this);
-            // map.emplace(PairT(message('?'), json_delegate<T, ExT...>::template create<S, &S::get>(this).stub()));
-            // map.emplace(PairT(message('!'), json_delegate<void, T, ExT...>::template create<S, &S::set>(this).stub()));
-            // if (sequencable()) {
-            //     map.emplace(PairT(message('^'), json_delegate<long, ExT...>::template create<S, &S::max_size>(this).stub()));
-            //     map.emplace(PairT(message('#'), json_delegate<long, ExT...>::template create<S, &S::size>(this).stub()));
-            //     map.emplace(PairT(message('0'), json_delegate<long, ExT...>::template create<S, &S::clear>(this).stub()));
-            //     map.emplace(PairT(message('+'), json_delegate<void, T, ExT...>::template create<S, &S::add>(this).stub()));
-            //     map.emplace(PairT(message('*'), json_delegate<void, ExT...>::template create<S, &S::start>(this).stub()));
-            //     map.emplace(PairT(message('~'), json_delegate<void, ExT...>::template create<S, &S::stop>(this).stub()));
-            // }
-            // return map.size() - startsize;
-        }
-
      protected:
         StrT brief_;
     };
 
-    template <typename T, class StrT, long MAX_SIZE>
+    /**
+     * Add a suite of property methods to a dispatch map.
+     * 
+     * @tparam MapT     Type of dispatch map using the std::map interface
+     * @tparam PropAnyT Interface type for this property (should be prop_any_type<XXX>)
+     *                  derived classes should keep track through the
+     *                  derived::PropAnyT type definition.
+     * 
+     * @param map           dispatch map to add to
+     * @param prop          property to add
+     * @param sequencable   is this property sequencable?
+     * @return size_t       number of methods added to the dispatch table
+     */
+    template <class MapT, class PropAnyT>
+    size_t add_to(MapT& map, PropAnyT& prop, bool sequencable) {
+        using PairT      = typename MapT::value_type;
+        using delsig     = typename PropAnyT::json_delegates;
+        size_t startsize = map.size();
+
+        map.insert(PairT(
+            prop.message('?'), // get
+            delsig::get::template create<PropAnyT, &PropAnyT::get>(&prop).stub()));
+        map.insert(PairT(
+            prop.message('!'), // set
+            delsig::set::template create<PropAnyT, &PropAnyT::set>(&prop).stub()));
+        if (sequencable) {
+            map.insert(PairT(
+                prop.message('^'), // max sequence size
+                delsig::array::template create<PropAnyT, &PropAnyT::max_size>(&prop).stub()));
+            map.insert(PairT(
+                prop.message('#'), // current sequence size
+                delsig::array::template create<PropAnyT, &PropAnyT::size>(&prop).stub()));
+            map.insert(PairT(
+                prop.message('0'), // clear sequence array
+                delsig::array::template create<PropAnyT, &PropAnyT::clear>(&prop).stub()));
+            map.insert(PairT(
+                prop.message('+'), // add to sequence array
+                delsig::set::template create<PropAnyT, &PropAnyT::add>(&prop).stub()));
+            map.insert(PairT(
+                prop.message('*'), // start sequence
+                delsig::action::template create<PropAnyT, &PropAnyT::start>(&prop).stub()));
+            map.insert(PairT(
+                prop.message('~'), // stop sequence
+                delsig::action::template create<PropAnyT, &PropAnyT::stop>(&prop).stub()));
+        }
+        return map.size() - startsize;
+    }
+
+    /************************************************************************
+     * Base to hold a sequencable property value
+     *
+     * @tparam T        property value type
+     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
+     ************************************************************************/
+    template <typename T, class StrT, long MAX_SEQ_SIZE>
     class simple_prop_base : public prop_any_base<T, StrT> {
+        // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
-        using ThisT = simple_prop_base<T, StrT, MAX_SIZE>;
         using BaseT = prop_any_base<T, StrT>;
+        using ThisT = simple_prop_base<T, StrT, MAX_SEQ_SIZE>;
+        using typename BaseT::PropAnyT; // used for dispatch map creation
 
         simple_prop_base(const StrT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
-              value_(initial), max_size_(MAX_SIZE), sequencable_(sequencable),
+              value_(initial), max_size_(MAX_SEQ_SIZE), sequencable_(sequencable),
               next_index_(0), size_(0), started_(false) {
         }
 
+        ////// IMPLEMENT INTERFACE //////
         virtual T get() const override {
             return value_;
         }
@@ -102,10 +178,152 @@ namespace rdl {
         volatile long next_index_;
         long size_;
         volatile bool started_;
-        T values_[MAX_SIZE];
+        T values_[MAX_SEQ_SIZE];
     };
 
+    /************************************************************************
+     * Base to hold an array of simple_prop_base properties.
+     *
+     * A second 'int channel' parameter in every call selects the appropriate
+     * simple_property_base channel. Create individual channel properties
+     * separately and add them to this holder. There is no "remove" method
+     * since this is for one-time server method dispatch setup.
+     *
+     * @tparam T        property value type
+     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
+     ************************************************************************/
+    template <typename T, class StrT, int MAX_CHANNELS>
+    class channel_prop_base : public prop_any_base<T, StrT, int> {
+        // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
+     public:
+        using BaseT = prop_any_base<T, StrT, int>;
+        using ThisT = channel_prop_base<T, StrT, MAX_CHANNELS>;
+        using ChanT = simple_prop_base<T, StrT, 1>; // MAX_SEQ_SIZE doesn't matter for the reference
 
+        using typename BaseT::PropAnyT; // used for dispatch map creation
+
+        channel_prop_base(const StrT& brief_name)
+            : BaseT(brief_name), num_channels_(0) {
+        }
+
+        int add(ChanT* prop) {
+            if (num_channels_ + 1 > MAX_CHANNELS) return num_channels_;
+            channels_[num_channels_++] = prop;
+            return num_channels_;
+        }
+
+        int add(ChanT* props, int nchan) {
+            if (num_channels_ + nchan > MAX_CHANNELS) return num_channels_;
+            for (int i = 0; i < nchan; i++)
+                add(props[i]);
+            return num_channels_;
+        }
+
+        ////// IMPLEMENT INTERFACE //////
+        virtual T get(int chan) const override {
+            if (chan < num_channels_)
+                return channels_[chan]->get();
+            else
+                return T();
+        }
+        virtual void set(const T value, int chan) override {
+            if (chan < num_channels_)
+                channels_[chan]->set(value);
+        }
+        virtual long max_size(int chan) const override {
+            if (chan < num_channels_)
+                return channels_[chan]->max_size();
+            else
+                return 0;
+        }
+        virtual long size(int chan) const override {
+            if (chan < num_channels_)
+                return channels_[chan]->size();
+            else
+                return 0;
+        }
+        virtual long clear(int chan) override {
+            if (chan < num_channels_)
+                return channels_[chan]->clear();
+            else
+                return 0;
+        }
+        virtual void add(const T value, int chan) override {
+            if (chan < num_channels_)
+                channels_[chan]->add(value);
+        }
+        virtual void start(int chan) override {
+            if (chan < num_channels_)
+                channels_[chan]->start();
+        }
+        virtual void stop(int chan) override {
+            if (chan < num_channels_)
+                channels_[chan]->stop();
+        }
+
+        virtual bool sequencable(int chan) override {
+            if (chan < num_channels_)
+                return channels_[chan]->sequencable();
+            return false;
+        }
+        /**
+         * ALL channels must be sequencable for this to be sequencable
+         */
+        virtual bool all_sequencable() {
+            // test if all channels are sequencable
+            if (num_channels_ == 0)
+                return false;
+            for (int i=0; i<num_channels_; i++) {
+                if (!sequencable(i))
+                    return false;
+            }
+            return true;
+        }
+
+     protected:
+        int num_channels_;
+        ChanT* channels_[MAX_CHANNELS];
+    };
+
+    /**
+     * Fast unordered_map hash function for strings
+     * 
+     * The STL doesn't define hash functions for arduino String. And 
+     * some Arduino STL implementations like Andy's Workshop STL (based
+     * on the SGI STL) has a string hash function that is just too simple.
+     * 
+     * Jenkins one-at-a-time 32-bits hash has great coverage
+     * (little overlap) and fast speeds for short strings
+     * 
+     * see https://stackoverflow.com/questions/7666509/hash-function-for-string
+     * 
+     * to use in a STL hashmap with arduino String keys, declare the map as
+     * @code{.cpp}
+     *      using MapT = std::unordered_map<String, rdl::json_stub, string_hash<String>>;
+     *      MapT dispatch_map;
+     * @endcode
+     * 
+     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     */
+    template <class StrT>
+    class string_hash {
+     public:
+        size_t operator()(const StrT& s) const {
+            size_t len      = s.length();
+            const char* key = s.c_str();
+            size_t hash, i;
+            for (hash = i = 0; i < len; ++i) {
+                hash += key[i];
+                hash += (hash << 10);
+                hash ^= (hash >> 6);
+            }
+            hash += (hash << 3);
+            hash ^= (hash >> 11);
+            hash += (hash << 15);
+            return hash;
+        }
+    };
 };
 
 #endif // __SERVERPROPERTY_H__

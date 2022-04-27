@@ -49,6 +49,7 @@ namespace rdl {
 
         stub_base() : object_(nullptr), fnstub_(nullptr) {}
         stub_base(void* object, FnStubT fnstub) : object_(object), fnstub_(fnstub) {}
+        // assume default copy constructor and assignment operator
 
         bool operator==(const stub_base& other) const {
             return object_ == other.object_ && fnstub_ == other.fnstub_;
@@ -81,6 +82,7 @@ namespace rdl {
      public:
         stub() : stub_base() {}
         stub(void* object, FnStubT fnstub) : stub_base(object, fnstub) {}
+        // assume default copy constructor and assignment operator
 
         template <typename RTYPE, typename... PARAMS>
         RTYPE call(PARAMS... arg) const {
@@ -118,6 +120,8 @@ namespace rdl {
     class delegate {
      public:
         delegate() : delegate(nullptr, reinterpret_cast<stub::FnStubT>(error_stub)) {}
+        delegate(const class stub& _stub) : stub_(_stub) {}
+        // assume default copy constructor and assignment operator
 
         bool operator==(const delegate& other) const { return stub_ == other.stub_; }
         bool operator!=(const delegate& other) const { return stub_ != other.stub_; }
@@ -201,11 +205,10 @@ namespace rdl {
      protected:
         class stub stub_;
 
-        delegate(const class stub& _stub) : stub_(_stub) {}
         delegate(void* object, stub_base::FnStubT fnstub) : stub_(object, fnstub) {}
 
-        template <typename R, typename... P>
-        friend delegate<R, P...> as(class stub& stub);
+        // template <typename R, typename... P>
+        // friend delegate<R, P...> as(class stub& stub);
 
         /********************************************************************
          * STUB IMPLEMENTATIONS
@@ -253,10 +256,13 @@ namespace rdl {
         
     }; // class delegate
 
-    template <typename RTYPE, typename... PARAMS>
-    inline delegate<RTYPE, PARAMS...> as(stub& stub) {
-        return delegate<RTYPE, PARAMS...>(stub);
-    }
+    // /** 
+    //  * `as` converts a stub back into a typed delegate 
+    //  */
+    // template <typename RTYPE, typename... PARAMS>
+    // inline delegate<RTYPE, PARAMS...> as(stub& stub) {
+    //     return delegate<RTYPE, PARAMS...>(stub);
+    // }
 
 } /* namespace rdl */
 

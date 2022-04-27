@@ -37,11 +37,27 @@ target_link_libraries(${DISPATCH_TEST_TARGET} PRIVATE Catch2::Catch2 ${CORELIB_N
 catch_discover_tests(${SLIP_TEST_TARGET})
 catch_discover_tests(${DISPATCH_TEST_TARGET})
 
+set(ARDUINO_CORE_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/Common.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/IPAddress.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/Print.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/Printable.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/Stream.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api/WString.cpp
+)
 
-add_executable("devel1" devel1_main.cpp )#../src/ServerProperty.h)
+add_executable("devel1" devel1_main.cpp ${ARDUINO_CORE_SRCS})
 target_compile_features("devel1" PUBLIC cxx_std_11)
+target_include_directories("devel1" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api")
 add_dependencies("devel1" ${CORELIB_NAME})
 target_link_libraries("devel1" PRIVATE ${CORELIB_NAME})
+
+add_executable("test_server" test_server.cpp ${ARDUINO_CORE_SRCS})
+target_compile_features("test_server" PUBLIC cxx_std_11)
+target_include_directories("test_server" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api")
+add_dependencies("test_server" ${CORELIB_NAME})
+target_link_libraries("test_server" PRIVATE ${CORELIB_NAME})
+
 
 # add_executable("devel2" main_devel2.cpp hrslip.h)
 # target_compile_features("devel2" PUBLIC cxx_std_11)

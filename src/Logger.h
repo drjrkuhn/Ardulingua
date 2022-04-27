@@ -9,6 +9,10 @@ class Printable;
 
 namespace rdl {
 
+    #ifndef DEC
+    #define DEC 10
+    #endif
+
     template <class STR>
     class Print_null {
      public:
@@ -54,6 +58,8 @@ namespace rdl {
      public:
         logger_base() : printer_(nullptr) {}
         logger_base(PRINT* printer) : printer_(printer) {}
+
+        PRINT& printer() { return *printer_; }
 
         template <typename T>
         size_t print(T t) {
