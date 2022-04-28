@@ -70,8 +70,8 @@ int setup_server() {
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barB));
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barC));
 
-    add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable());
-    add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.all_sequencable());
+    add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable(), foo.read_only());
+    add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.sequencable(-1), bars.read_only(-1));
 
     return 0;
 }

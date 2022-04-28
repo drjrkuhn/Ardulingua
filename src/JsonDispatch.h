@@ -294,7 +294,7 @@ namespace rdl {
             // check for reply id
             if (jvid.isNull())
                 return ERROR_JSON_INVALID_REPLY;
-            long reply_id = jvid.as<int>();
+            long reply_id = jvid.as<long>();
             if (reply_id != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check result in reply
@@ -319,7 +319,7 @@ namespace rdl {
             DCS(logger_.print("\tdeserialized"); logger_.println(msgdoc));
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
-            if (jvid.isNull() || jvid.as<int>() != msg_id)
+            if (jvid.isNull() || jvid.as<long>() != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check for error in reply
             return msgdoc[RK_ERROR] | ERROR_OK;
@@ -389,7 +389,7 @@ namespace rdl {
                         logger_.println(err);
                     } else {
                         logger_.print(" -> ");
-                        logger_.println(result.as<const char*>());
+                        logger_.println(result.as<STR>());
                     });
                 break;
             }

@@ -60,6 +60,7 @@ namespace rdl {
         virtual void start(ExT... ex)              = 0;
         virtual void stop(ExT... ex)               = 0;
         virtual bool sequencable(ExT... ex) const  = 0;
+        virtual bool read_only(ExT... ex) const    = 0;
 
         StrT message(const char opcode) { return opcode + brief_; }
 
@@ -81,20 +82,23 @@ namespace rdl {
      * @return size_t       number of methods added to the dispatch table
      */
     template <class MapT, class RootT>
-    size_t add_to(MapT& map, RootT& prop, bool sequencable) {
+    size_t add_to(MapT& map, RootT& prop, bool sequencable, bool read_only) {
         using PairT      = typename MapT::value_type;
         using delsig     = typename RootT::json_delegates;
         size_t startsize = map.size();
 
+        // minimum properties are get and max_size
         map.insert(PairT(
             prop.message('?'), // get
             delsig::get::template create<RootT, &RootT::get>(&prop).stub()));
         map.insert(PairT(
-            prop.message('!'), // set
-            delsig::set::template create<RootT, &RootT::set>(&prop).stub()));
-        map.insert(PairT(
-            prop.message('^'), // max sequence size or number of channels
+            prop.message('^'), // max_size for sequences, doubles as number of channels
             delsig::array::template create<RootT, &RootT::max_size>(&prop).stub()));
+        if (!read_only) {
+            map.insert(PairT(
+                prop.message('!'), // set
+                delsig::set::template create<RootT, &RootT::set>(&prop).stub()));
+        }
         if (sequencable) {
             map.insert(PairT(
                 prop.message('#'), // current sequence size
@@ -133,7 +137,7 @@ namespace rdl {
      * @tparam StrT     strings used by the server (std::string or arudino::String)
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, class StrT, long MAX_SEQ_SIZE>
+    template <typename T, class StrT, long MAX_SEQ_SIZE, bool READONLY=false>
     class simple_prop_base : public prop_any_base<T, StrT> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
@@ -182,6 +186,9 @@ namespace rdl {
         }
         virtual bool sequencable() const override {
             return sequencable_;
+        }
+        virtual bool read_only() const override {
+            return READONLY;
         }
 
      protected:
@@ -246,8 +253,8 @@ namespace rdl {
                 channels_[chan]->set(value);
         }
         /**
-         * Gets the maximum sequence size of a chan or
-         * the number of channels if chan<0
+         * Gets the maximum sequence size of a single chan or
+         * the total number of channels if chan<0
          */
         virtual long max_size(int chan) const override {
             if (chan < 0)
@@ -290,23 +297,32 @@ namespace rdl {
             }
         }
 
+        /** call with chan < 0 to check if all channels are sequencable  */
         virtual bool sequencable(int chan) const override {
-            if (chan >= 0 && chan < num_channels_)
+            if (chan < 0) { // check all channels
+                for (int i=0; i<num_channels_; i++) {
+                    if (!channels_[i]->sequencable())
+                        return false;
+                }
+                return true;
+            }
+            if (chan < num_channels_)
                 return channels_[chan]->sequencable();
             return false;
         }
-        /**
-         * ALL channels must be sequencable for this to be sequencable
-         */
-        virtual bool all_sequencable() {
-            // test if all channels are sequencable
-            if (num_channels_ == 0)
-                return false;
-            for (int i=0; i<num_channels_; i++) {
-                if (!sequencable(i))
-                    return false;
+
+        /** call with chan < 0 to check if all channels are read_only  */
+        virtual bool read_only(int chan) const override {
+            if (chan < 0) { // check all channels
+                for (int i=0; i<num_channels_; i++) {
+                    if (!channels_[i]->read_only())
+                        return false;
+                }
+                return true;
             }
-            return true;
+            if (chan < num_channels_)
+                return channels_[chan]->read_only();
+            return false;
         }
 
      protected:

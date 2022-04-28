@@ -6,7 +6,7 @@ project("test_${CORELIB_NAME}")
 ###
 
 
-find_package(Boost 1.77 REQUIRED COMPONENTS date_time)
+# find_package(Boost 1.77 REQUIRED COMPONENTS date_time)
 
 set(SLIP_TEST_TARGET "${PROJECT_NAME}_slip")
 set(SLIP_TEST_SRCS 
@@ -59,7 +59,8 @@ add_executable("test_server" test_server.cpp ${ARDUINO_CORE_SRCS})
 target_compile_features("test_server" PUBLIC cxx_std_11)
 target_include_directories("test_server" PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../ArduinoCore-host/api")
 add_dependencies("test_server" ${CORELIB_NAME})
-target_link_libraries("test_server" PRIVATE ${CORELIB_NAME} Boost::date_time)
+#target_link_libraries("test_server" PRIVATE ${CORELIB_NAME} Boost::date_time)
+target_link_libraries("test_server" PRIVATE ${CORELIB_NAME})
 
 
 # add_executable("devel2" main_devel2.cpp hrslip.h)
