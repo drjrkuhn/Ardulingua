@@ -147,7 +147,7 @@ namespace rdl {
 
         simple_prop_base(const StrT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
-              value_(initial), max_size_(MAX_SEQ_SIZE), sequencable_(sequencable),
+              value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE), 
               next_index_(0), size_(0), started_(false) {
         }
 
@@ -225,6 +225,10 @@ namespace rdl {
 
         channel_prop_base(const StrT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
+        }
+        channel_prop_base(const StrT& brief_name, ChanT* props[], int nchan)
+            : BaseT(brief_name), num_channels_(0) {
+                add(props, nchan);
         }
 
         int add(ChanT* prop) {

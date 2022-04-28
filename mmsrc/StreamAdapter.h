@@ -88,7 +88,7 @@ namespace rdl {
 
         std::string readStdStringUntil(char terminator) {
             std::lock_guard<std::mutex> _(guard_);
-            return readStringUntil_impl(terminator);
+            return readStdStringUntil_impl(terminator);
         }
 
         size_t readBytesUntil(char terminator, char* buffer, size_t length) {
@@ -138,7 +138,7 @@ namespace rdl {
                 length--;
             }
             unsigned long bytesRead;
-            int err = hub_->ReadFromComPort(hub_->port().c_str(), buffer, length, bytesRead);
+            int err = hub_->ReadFromComPort(hub_->port().c_str(), reinterpret_cast<unsigned char*>(buffer), static_cast<unsigned int>(length), bytesRead);
             if (err == DEVICE_OK) {
                 // GetSerialAnswer discards the terminator
                 if (lastc >= 0) bytesRead++;
@@ -146,7 +146,7 @@ namespace rdl {
             } else {
                 hub_->LogMessage("HubStreamAdapter::readBytes(buffer,length) failed: ");
                 char text[MM::MaxStrLength];
-                GetErrorText(errorCode, text);
+                hub_->GetErrorText(err, text);
                 hub_->LogMessage(text);
                 if (lastc >= 0) bytesRead++;
                 return bytesRead;

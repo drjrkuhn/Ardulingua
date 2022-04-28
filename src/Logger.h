@@ -7,14 +7,17 @@
 
 class Printable;
 
+    #include <iomanip>
+    #include <sstream>
+
 namespace rdl {
 
     #ifndef DEC
-    #define DEC 10
+        #define DEC 10
     #endif
 
     template <class STR>
-    class Print_null {
+    class NULL_Printer  {
      public:
         inline size_t write(const unsigned char*, size_t) { return 0; }
         inline size_t write(const char*) { return 0; }
@@ -53,13 +56,93 @@ namespace rdl {
         inline size_t println(void) { return 0; }
     };
 
-    template <class PRINT, class STR>
+    template <class DeviceT>
+    class DeviceLog_Printer {
+     public:
+        DeviceLog_Printer() : device_(nullptr), debug_only_(debug_only) {}
+        DeviceLog_Printer(DeviceT* device, bool debug_only) : device_(device), debug_only_(debug_only) {}
+
+        inline size_t write(const unsigned char* buf, size_t size) {
+            size_t s = stream_.tellp();
+            stream_.write(reinterpret_cast<const char*>(buf), size);
+            return stream_.tellp() - s;
+        }
+        inline size_t write(const char* c_str) {
+            size_t s = stream_.tellp();
+            stream_ << c_str;
+            return stream_.tellp() - s;
+        }
+        inline size_t write(uint8_t c) {
+            size_t s = stream_.tellp();
+            stream_ << c;
+            return stream_.tellp() - s;
+        }
+        inline size_t print(const std::string& s) { return write(s); }
+        inline size_t print(const char s[]) { return write(s); }
+        inline size_t print(char) { return write(c); }
+        inline size_t print(unsigned char n, int base = DEC) { return print_unsigned(n, base); }
+        inline size_t print(short n, int base = DEC) { return print_signed(n, base); }
+        inline size_t print(unsigned short n, int base = DEC) { return print_unsigned(n, base); }
+        inline size_t print(int n, int base = DEC) { return print_signed(n, base); }
+        inline size_t print(unsigned int n, int base = DEC) { return print_unsigned(n, base); }
+        inline size_t print(long n, int base = DEC) { return print_signed(n, base); }
+        inline size_t print(unsigned long n, int base = DEC) { return print_unsigned(n, base); }
+        inline size_t print(long long n, int base = DEC) { return print_signed(n, base); }
+        inline size_t print(unsigned long long n, int base = DEC) { return print_unsigned(n, base); }
+        inline size_t print(float n, int prec = 2) { return print(static_cast<double>(n), prec); }
+        inline size_t print(double n, int prec = 2) {
+            size_t s = stream_.tellp();
+            stream_ << std::setprecision(prec) << std::fixed << n;
+            return stream_.tellp() - s;
+        }
+        inline size_t print(const Printable& x) { return x.printTo(*this); }
+
+        inline size_t println(const std::string& s) { return print(s) + println(); }
+        inline size_t println(const char s[]) { return print(s) + println(); }
+        inline size_t println(char c) { return print(c) + println(); }
+        inline size_t println(unsigned char n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(short n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(unsigned short n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(int n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(unsigned int n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(long n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(unsigned long n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(long long n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(unsigned long long n, int b = DEC) { return print(n, b) + println(); }
+        inline size_t println(float n, int p = 2) { return print(n, p) + println(); }
+        inline size_t println(double n, int p = 2) { return print(n, p) + println(); }
+        inline size_t println(const Printable& x) { return print(x) + println(); }
+
+        inline size_t println(void) {
+            // only send on println;
+            if (device_)
+                device_->LogMessage(stream_.str(), debug_only_);
+            stream_.str("");
+        }
+
+     protected:
+        inline size_t print_unsigned(unsigned long long n, int base = DEC) {
+            size_t s = stream_.tellp();
+            stream_ << std::setbase(base) << n;
+            return stream_.tellp() - s;
+        }
+        inline size_t print_signed(long long n, int base = DEC) {
+            size_t s = stream_.tellp();
+            stream_ << std::setbase(base) << n;
+            return stream_.tellp() - s;
+        }
+        DeviceT* device_;
+        std::ostringstream stream_;
+        bool debug_only_;
+    };
+
+    template <class Print, class STR>
     class logger_base {
      public:
         logger_base() : printer_(nullptr) {}
-        logger_base(PRINT* printer) : printer_(printer) {}
+        logger_base(Print* printer) : printer_(printer) {}
 
-        PRINT& printer() { return *printer_; }
+        Print& printer() { return *printer_; }
 
         template <typename T>
         size_t print(T t) {
@@ -137,7 +220,7 @@ namespace rdl {
         }
 
      protected:
-        PRINT* printer_;
+        Print* printer_;
     };
 
 }; // namespace rdl

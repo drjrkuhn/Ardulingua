@@ -31,6 +31,18 @@ namespace rdl {
     template <class R>
     using RetT = typename Ret<R>::type;
 
+    namespace svc {
+        // C++11 compile-time helpers to determine which _impl to call
+        // in c++14 or later, one could use constexpr if(std::is_void<RTYPE>::type) to switch
+        // ALSO see https://stackoverflow.com/questions/43587405/constexpr-if-alternative
+        using ret_is_void  = std::true_type;
+        using ret_not_void = std::false_type;
+        template <typename R>
+        using is_void_tag = std::integral_constant<bool, std::is_void<R>::value>;
+    };
+
+
+
     /************************************************************************
      * Generic function call stub with delegate type erased.
      * 
@@ -248,11 +260,20 @@ namespace rdl {
 
         //// error stub ////
 
-        static RTYPE error_stub(void*, PARAMS...) {
+        inline static RTYPE error_stub_impl(svc::ret_is_void) {
             assert(false);
-            RTYPE ret;
-            return ret;
+            return;
         }
+
+        inline static RTYPE error_stub_impl(svc::ret_not_void) {
+            assert(false);
+            return RTYPE();
+        }
+        static RTYPE error_stub(void*, PARAMS...) {
+            return error_stub_impl(svc::is_void_tag<RTYPE>{});
+        }
+
+
         
     }; // class delegate
 

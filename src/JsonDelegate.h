@@ -46,16 +46,6 @@ namespace rdl {
     constexpr int ERROR_JSON_DESER_NO_MEMORY        = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::NoMemory;
     constexpr int ERROR_JSON_DESER_TOO_DEEP         = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::TooDeep;
 
-    namespace svc {
-        // C++11 compile-time helpers to determine which _impl to call
-        // in c++14 or later, one could use constexpr if(std::is_void<RTYPE>::type) to switch
-        // ALSO see https://stackoverflow.com/questions/43587405/constexpr-if-alternative
-        using ret_is_void  = std::true_type;
-        using ret_not_void = std::false_type;
-        template <typename R>
-        using is_void_tag = std::integral_constant<bool, std::is_void<R>::value>;
-    };
-
     /************************************************************************
      * Json stubs with type erased
      *
@@ -212,7 +202,6 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...), size_t... I>
         inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-            // std::cout << "[method_jsonstub_impl:ret_is_void]";
             C* p = static_cast<C*>(this_ptr);
             (p->*TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -220,7 +209,6 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...), size_t... I>
         inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-            // std::cout << "[method_jsonstub_impl:ret_not_void]";
             C* p = static_cast<C*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
@@ -238,7 +226,6 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...) const, size_t... I>
         inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-            // std::cout << "[const_method_jsonstub_impl:ret_is_void]";
             C* const p = static_cast<C*>(this_ptr);
             (p->*TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -246,7 +233,6 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...) const, size_t... I>
         inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-            // std::cout << "[const_method_jsonstub_impl:ret_not_void]";
             C* const p = static_cast<C*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
@@ -264,14 +250,12 @@ namespace rdl {
 
         template <RTYPE (*TMethod)(PARAMS...), size_t... I>
         inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-            // std::cout << "[function_jsonstub_impl:ret_is_void]";
             (TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
         }
 
         template <RTYPE (*TMethod)(PARAMS...), size_t... I>
         inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-            // std::cout << "[function_jsonstub_impl:ret_not_void]";
             if (ret.set(static_cast<RTYPE>((TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
             else
@@ -290,7 +274,6 @@ namespace rdl {
 
         template <typename LAMBDA, size_t... I>
         inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
-            // std::cout << "[lambda_jsonstub_impl:ret_is_void]";
             LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
             (p->operator())(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -298,7 +281,6 @@ namespace rdl {
 
         template <typename LAMBDA, size_t... I>
         inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
-            // std::cout << "[lambda_jsonstub_impl:ret_not_void]";
             LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->operator())(args[I].as<PARAMS>()...))))
                 return ERROR_OK;

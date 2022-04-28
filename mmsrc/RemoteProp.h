@@ -162,7 +162,7 @@ namespace rdl {
         using ThisT          = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
         using ActionT        = MM::Action<ThisT>;
         using StreamAdapterT = HubStreamAdapter<DeviceT, arduino::Stream>;
-        using ClientT        = jsonclient<StreamAdapterT, std::string, BUFFER_SIZE>;
+        using ClientT        = json_client<StreamAdapterT, StreamAdapterT, std::string, JSONRCP_BUFFER_SIZE>;
         using ExtrasT        = std::tuple<ExT...>;
 
         RemoteProp_Base() : client_(nullptr) {}
