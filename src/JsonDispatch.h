@@ -13,11 +13,11 @@
     #include <unordered_map>
 
     #define JSONRPC_USE_SHORT_KEYS 1
-    // #define JSONRPC_USE_MSGPACK 1
+// #define JSONRPC_USE_MSGPACK 1
 
     #define JSONRPC_DEBUG_CLIENTSERVER 1
     #define JSONRPC_DEBUG_SERVER_DISPATCH 1
-    
+
     #if defined(JSONRPC_USE_SHORT_KEYS) && (JSONRPC_USE_SHORT_KEYS != 0)
         #define JSONRPC_USE_SHORT_KEYS 1
     #else
@@ -142,7 +142,6 @@ namespace rdl {
             { ; }
     #endif
 
-
     constexpr size_t BUFFER_SIZE = 256;
 
     namespace svc {
@@ -168,9 +167,11 @@ namespace rdl {
     template <class IS, class OS, class STR, class LOG = logger_base<Print_null<STR>, STR>>
     class protocol_base {
      public:
-        protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size, int max_retries = 3)
+        protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size,
+                      unsigned long timeout_ms = 1000, unsigned long retry_delay_ms = 10)
             : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
-            max_retries_ = max_retries;
+            timeout_ms_     = timeout_ms;
+            retry_delay_ms_ = retry_delay_ms;
         }
 
         template <typename... PARAMS>
@@ -321,7 +322,8 @@ namespace rdl {
         IS& istream_;
         OS& ostream_;
         svc::buffer buffer_;
-        int max_retries_;
+        unsigned long timeout_ms_;
+        unsigned long retry_delay_ms_;
         LOG EMPTY_LOGGER;
         LOG& logger_ = EMPTY_LOGGER;
     };
@@ -335,8 +337,8 @@ namespace rdl {
         typedef protocol_base<IS, OS, STR, LOG> BaseT;
         using BaseT::logger;
 
-        json_server(IS& istream, OS& ostream, MAP& map, int max_retries = 2)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries),
+        json_server(IS& istream, OS& ostream, MAP& map, unsigned long timeout_ms = 1000, unsigned long retry_delay_ms = 10)
+            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
               dispatch_map_(map) {
         }
 
@@ -349,10 +351,6 @@ namespace rdl {
             // read message
             size_t msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
             DCS(logger_.print("SERVER << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
-            return process(buffer_.data(), msgsize);
-        }
-
-        int process(const char* message, size_t msgsize) {
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -373,9 +371,11 @@ namespace rdl {
                 DSDISP(logger_.print("SERVER called "); logger_.print(mapit->first); serializeJson(args, logger_.printer()));
                 DSDISP(
                     if (err != ERROR_OK) {
-                        logger_.print(" -> ERROR "); logger_.println(err);
+                        logger_.print(" -> ERROR ");
+                        logger_.println(err);
                     } else {
-                        logger_.print(" -> "); logger_.println(result.as<const char*>());
+                        logger_.print(" -> ");
+                        logger_.println(result.as<const char*>());
                     });
                 break;
             }
@@ -400,7 +400,8 @@ namespace rdl {
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
-        using BaseT::max_retries_;
+        using BaseT::timeout_ms_;
+        using BaseT::retry_delay_ms_;
         using BaseT::logger_;
         MAP& dispatch_map_;
         uint8_t buffer_data_[BUFSIZE];
@@ -415,27 +416,41 @@ namespace rdl {
         typedef protocol_base<IS, OS, STR, LOG> BaseT;
         using BaseT::logger;
 
-        json_client(IS& istream, OS& ostream, long reply_wait_ms = 200, int max_retries = 2)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, max_retries), // buffer_(buffer_data_, BUFSIZE),
-              reply_wait_ms_(reply_wait_ms), nextid_(1) {
+        json_client(IS& istream, OS& ostream, unsigned long timeout_ms = 1000, unsigned long retry_delay_ms = 10)
+            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms), // buffer_(buffer_data_, BUFSIZE),
+              nextid_(1) {
         }
 
         template <typename... PARAMS>
         int call(const char* method, PARAMS... args) {
-            int tries    = max_retries_;
+            unsigned long starttime     = sys_millis();
+            unsigned long endtime  = starttime + timeout_ms_;
+            unsigned long time;
             int last_err = ERROR_OK;
             size_t msgsize;
-            while (tries-- > 0) {
+            while ((time = sys_millis()) < endtime) {
                 int msg_id = nextid_++;
                 last_err   = call_impl<PARAMS...>(method, msg_id, args...);
                 // get reply
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
-                if (last_err != ERROR_OK || msgsize == 0)
+                if (last_err != ERROR_OK || msgsize == 0) {
+                    DCS(logger_.print("CLIENT call ERROR "); logger_.print(last_err));
+                    DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
                     return last_err;
+                }
                 last_err = BaseT::deserialize_reply(msg, msgsize, msg_id);
-                if (last_err != ERROR_OK)
+                if (last_err != ERROR_OK) {
                     continue; // try again
+                    if (retry_delay_ms_ > 0) {
+                        sys_delay(retry_delay_ms_);
+                    } else {
+                        sys_yield();
+                    }
+                }
+                DCS(logger_.print("CLIENT call success"));
+                DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+
                 // all good
                 return ERROR_OK;
             }
@@ -450,21 +465,34 @@ namespace rdl {
 
         template <typename RTYPE, typename... PARAMS>
         int call_get(const char* method, RTYPE& ret, PARAMS... args) {
-            int tries    = max_retries_;
+            unsigned long starttime = sys_millis();
+            unsigned long endtime = starttime + timeout_ms_;
+            unsigned long time;
             int last_err = ERROR_OK;
             size_t msgsize;
-            while (tries-- > 0) {
+            while ((time = sys_millis()) < endtime) {
                 int msg_id = static_cast<int>(nextid_++);
                 last_err   = call_impl<PARAMS...>(method, msg_id, args...);
                 // get reply
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
-                if (last_err != ERROR_OK || msgsize == 0)
+                if (last_err != ERROR_OK || msgsize == 0) {
+                    DCS(logger_.print("CLIENT call_get ERROR "); logger_.print(last_err));
+                    DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
                     return last_err;
+                }
                 last_err = BaseT::deserialize_reply(msg, msgsize, msg_id, ret);
-                if (last_err != ERROR_OK)
+                if (last_err != ERROR_OK) {
                     continue; // try again
-                // all good
+                    if (retry_delay_ms_ > 0) {
+                        sys_delay(retry_delay_ms_);
+                    } else {
+                        sys_yield();
+                    }
+                }
+                DCS(logger_.print("CLIENT call_get success"));
+                DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+                 // all good
                 return ERROR_OK;
             }
             return last_err;
@@ -519,30 +547,37 @@ namespace rdl {
         }
 
         int read_reply(size_t& msgsize) {
+            unsigned long starttime = sys_millis();
+            unsigned long endtime = starttime + timeout_ms_;
+            unsigned long time;
             msgsize        = 0;
-            int wait_tries = max_retries_;
-            while (wait_tries-- > 0) {
+            while ((time = sys_millis()) < endtime) {
                 if (istream_.available() > 0) {
                     msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
                     DCS(logger_.print("CLIENT << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
-                    if (msgsize > 0)
+                    if (msgsize > 0) {
+                        DCS(logger_.print("CLIENT read_reply success"));
+                        DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
                         return ERROR_OK;
+                    }
                 }
-                if (reply_wait_ms_ > 0) {
-                    sys_delay(reply_wait_ms_);
+                if (retry_delay_ms_ > 0) {
+                    sys_delay(retry_delay_ms_);
                 } else {
                     sys_yield();
                 }
             }
+            DCS(logger_.print("CLIENT read_reply TIMEOUT"));
+            DCS(logger_.print("\ttime("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
             return ERROR_JSON_TIMEOUT;
         }
 
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
-        using BaseT::max_retries_;
+        using BaseT::timeout_ms_;
+        using BaseT::retry_delay_ms_;
         using BaseT::logger_;
-        long reply_wait_ms_;
         int nextid_;
         uint8_t buffer_data_[BUFSIZE];
     };

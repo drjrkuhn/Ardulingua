@@ -8,6 +8,10 @@
 #include <Stream.h>
 #include <Stream_std.h>
 #include <Logger.h>
+#include <thread>
+#include <future>
+#include <Polyfills/sys_timing.h>
+
 
 #include <string>
 #include <sstream>
@@ -50,6 +54,10 @@ StreamT toserver(&ss_toserver);
 StreamT fromserver(&ss_fromserver);
 
 using ServerT = json_server<StreamT, StreamT, MapT, StringT, 512, LoggerT>;
+using ClientT = json_client<StreamT, StreamT, StringT, 512, LoggerT>;
+
+////////// SERVER CODE /////////////
+
 ServerT server(toserver, fromserver, dispatch_map);
 
 int setup_server() {
@@ -65,19 +73,68 @@ int setup_server() {
     return 0;
 }
 
-int process_message(StringT json) {
-    return server.process(json.c_str(), json.length());
+std::promise<void> exitSignal;
+std::thread server_thread;
+
+void server_thread_fn (std::future<void> stopFuture) {
+    std::cout << "SERVER Thread Start" << std::endl;
+    while (stopFuture.wait_for(std::chrono::milliseconds(1)) == std::future_status::timeout) {
+        int ret = server.check_messages();
+        if (ret != ERROR_OK) {
+            std::cerr << "SERVER ERROR: " << ret << std::endl;
+        }
+        sys_yield();
+    }
+    std::cout << "SERVER Thread End" << std::endl;
 }
+
+int start_server() {
+    std::future<void> stopFuture = exitSignal.get_future();
+    server_thread = std::thread(&server_thread_fn, std::move(stopFuture));
+    sys_delay(20);
+    return 0;
+}
+
+int stop_server() {
+    std::cout << "Asking Server Thread to Stop" << std::endl;
+    // stop_server_thread = true;
+    exitSignal.set_value();
+    server_thread.join();
+    std::cout << "Done" << std::endl;
+    return 0;
+}
+
+////////// CLIENT CODE /////////////
+
+ClientT client(fromserver, toserver);
 
 int main() {
 
-    cout_Print.println("Hello from cout_Stream");
-    logger.println("Hello from logger");
+    using namespace std;
 
     setup_server();
+    start_server();
+    client.logger(logger);
 
-    process_message("{\"m\":\"?foo\", \"i\":1}");
-    
+    int fooval;
+    client.call_get("?foo", fooval);
+    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
+    sys_yield();
+    cout << "foo = " << fooval << endl;
+    client.call("!foo", 120);
+    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
+    sys_yield();
+    client.call_get("?foo", fooval);
+    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
+    sys_yield();
+    cout << "foo = " << fooval << endl;
+    client.call_get("?foo", fooval);
+    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
+    sys_yield();
+    cout << "foo = " << fooval << endl;
+
+    delay(5000);
+    stop_server();
 
     return 0;
 }
