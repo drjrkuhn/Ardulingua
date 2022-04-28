@@ -34,9 +34,10 @@ namespace rdl {
     constexpr int ERROR_JSON_ENCODING_ERROR = -32001;
     constexpr int ERROR_JSON_SEND_ERROR     = -32002;
     constexpr int ERROR_JSON_TIMEOUT        = -32003;
-    constexpr int ERROR_JSON_INVALID_REPLY  = -32004;
-    constexpr int ERROR_SLIP_ENCODING_ERROR = -32005;
-    constexpr int ERROR_SLIP_DECODING_ERROR = -32006;
+    constexpr int ERROR_JSON_NO_REPLY       = -32004;
+    constexpr int ERROR_JSON_INVALID_REPLY  = -32005;
+    constexpr int ERROR_SLIP_ENCODING_ERROR = -32006;
+    constexpr int ERROR_SLIP_DECODING_ERROR = -32007;
 
     constexpr int ERROR_JSON_DESER_ERROR_0          = -32090;
     constexpr int ERROR_JSON_DESER_EMPTY_INPUT      = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::EmptyInput;

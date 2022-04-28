@@ -23,7 +23,8 @@ using StringT = std::string;
 
 Print_stdostream<std::ostream> cout_Print(std::cout);
 using LoggerT = logger_base<Print, StringT>;
-LoggerT logger(&cout_Print);
+LoggerT clientlogger(&cout_Print);
+LoggerT serverlogger(&cout_Print);
 
 using MapT = std::unordered_map<StringT, json_stub, string_hash<StringT>>;
 
@@ -50,8 +51,8 @@ std::stringstream ss_toserver;
 std::stringstream ss_fromserver;
 using StreamT = Stream_stdstream<std::stringstream>;
 
-StreamT toserver(&ss_toserver);
-StreamT fromserver(&ss_fromserver);
+StreamT toserver(ss_toserver);
+StreamT fromserver(ss_fromserver);
 
 using ServerT = json_server<StreamT, StreamT, MapT, StringT, 512, LoggerT>;
 using ClientT = json_client<StreamT, StreamT, StringT, 512, LoggerT>;
@@ -61,7 +62,7 @@ using ClientT = json_client<StreamT, StreamT, StringT, 512, LoggerT>;
 ServerT server(toserver, fromserver, dispatch_map);
 
 int setup_server() {
-    server.logger(logger);
+    server.logger(serverlogger);
 
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barA));
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barB));
@@ -114,7 +115,7 @@ int main() {
 
     setup_server();
     start_server();
-    client.logger(logger);
+    client.logger(clientlogger);
 
     int fooval;
     client.call_get("?foo", fooval);
