@@ -59,6 +59,8 @@ using ClientT = json_client<StreamT, StreamT, StringT, 512, LoggerT>;
 
 ////////// SERVER CODE /////////////
 
+#define SERVER_COL "\t\t\t\t\t\t"
+
 ServerT server(toserver, fromserver, dispatch_map);
 
 int setup_server() {
@@ -78,7 +80,7 @@ std::promise<void> exitSignal;
 std::thread server_thread;
 
 void server_thread_fn (std::future<void> stopFuture) {
-    std::cout << "SERVER Thread Start" << std::endl;
+    std::cout << SERVER_COL "SERVER Thread Start" << std::endl;
     while (stopFuture.wait_for(std::chrono::milliseconds(1)) == std::future_status::timeout) {
         int ret = server.check_messages();
         if (ret != ERROR_OK) {
@@ -86,10 +88,11 @@ void server_thread_fn (std::future<void> stopFuture) {
         }
         sys_yield();
     }
-    std::cout << "SERVER Thread End" << std::endl;
+    std::cout << SERVER_COL "SERVER Thread End" << std::endl;
 }
 
 int start_server() {
+    std::cout << "CLIENT start server" << std::endl;
     std::future<void> stopFuture = exitSignal.get_future();
     server_thread = std::thread(&server_thread_fn, std::move(stopFuture));
     sys_delay(20);
@@ -97,7 +100,7 @@ int start_server() {
 }
 
 int stop_server() {
-    std::cout << "Asking Server Thread to Stop" << std::endl;
+    std::cout << "CLIENT stop server" << std::endl;
     // stop_server_thread = true;
     exitSignal.set_value();
     server_thread.join();
@@ -119,22 +122,14 @@ int main() {
 
     int fooval;
     client.call_get("?foo", fooval);
-    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
-    sys_yield();
     cout << "foo = " << fooval << endl;
     client.call("!foo", 120);
-    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
-    sys_yield();
     client.call_get("?foo", fooval);
-    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
-    sys_yield();
     cout << "foo = " << fooval << endl;
     client.call_get("?foo", fooval);
-    // cout << "toserver: " << ss_toserver.str() << "  fromserver: " << ss_fromserver.str() << endl;;
-    sys_yield();
     cout << "foo = " << fooval << endl;
 
-    delay(5000);
+    delay(500);
     stop_server();
 
     return 0;

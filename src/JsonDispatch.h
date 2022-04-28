@@ -13,8 +13,8 @@
     #include <unordered_map>
 
     #define JSONRPC_USE_SHORT_KEYS 1
-// #define JSONRPC_USE_MSGPACK 1
-    #define JSONRPC_DEBUG_CLIENTSERVER 1
+    // #define JSONRPC_USE_MSGPACK 1
+    // #define JSONRPC_DEBUG_CLIENTSERVER 1
     #define JSONRPC_DEBUG_SERVER_DISPATCH 1
 
     #define JSONRPC_DEFAULT_TIMEOUT 1000

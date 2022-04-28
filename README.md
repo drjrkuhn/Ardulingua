@@ -1,6 +1,8 @@
 # Ardulingua
 
-Library for JSON-RPC-like communication between arduino and Micro-manager device drivers
+Library for JSON-RPC-like communication between arduino and Micro-manager device drivers.
+
+Uses [ArduinoCore-host](https://github.com/drjrkuhn/ArduinoCore-host) for mocking Arduino client-server interactions.
 
 # Json Dispatch communication scheme
 
