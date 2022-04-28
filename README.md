@@ -87,20 +87,20 @@ We prepend a single-character opcode to the property brief to denote a standard 
 
 |opcode| operation                          |meth[^1]| server signature[^2]                      |
 |:----:|:-----------------------------------|:-----:|:-------------------------------------------|
-|  ?   | GET value                          | get   | `call<T,EX...>("?brief",ex...)->T`           |
-|  !   | SET value                          | set   | `call<void,T,EX...>("!brief",t,ex...)`       |
-|  !   | NSET value - no reply              | set   | `notify<void,T,EX...>("!brief",t,ex...)`     |
-|  *   | ACT task                           | act   | `call<void,EX...>("*brief",ex...)`           |
-|  *   | NOTIFY task (ACT without response) | act   | `notify<void,EX...>("*brief",ex...)`         |
+|  ?   | GET value                          | get   | `call<T,EX...>("?brief",ex...)->T`         |
+|  !   | SET value                          | set   | `call<void,T,EX...>("!brief",t,ex...)`     |
+|  !   | NSET value - no reply              | set   | `notify<void,T,EX...>("!brief",t,ex...)`   |
+|  *   | ACT task                           | act   | `call<void,EX...>("*brief",ex...)`         |
+|  *   | NOTIFY task (ACT without response) | act   | `notify<void,EX...>("*brief",ex...)`       |
 |  --  |     **SEQUENCE/ARRAY COMMANDS**    | --    | --                                         |
-|  ^   | GET maximum size of seq array[^3]  | array | `call<long,EX...>("^brief",ex...)->long`     |
-|  #   | GET number of values in seq array  | array | `call<long,EX...>("#brief",ex...)->long`     |
-|  0   | CLEAR seq array                    | array | `notify<long,EX...>("0brief",ex...)->dummy`  |
-|  +   | ADD value to sequence array        | set   | `notify<void,T,EX...>("+brief",ex...)`       |
-|  *   | ACT task doubles as start seq.     | act   | `call<void,EX...>("*brief",ex...)`           |
-|  *   | NOTIFY task to start seq.          | act   | `notify<void,EX...>("*brief",ex...)`         |
-|  \~  | STOP sequence                      | act   | `call<void,EX...>("\~brief",ex...)`          |
-|  \~  | STOP sequence                      | act   | `notify<void,EX...>("\~brief",ex...)`        |
+|  ^   | GET maximum size of seq array[^3]  | array | `call<long,EX...>("^brief",ex...)->long`   |
+|  #   | GET number of values in seq array  | array | `call<long,EX...>("#brief",ex...)->long`   |
+|  0   | CLEAR seq array                    | array | `notify<long,EX...>("0brief",ex...)->dummy`|
+|  +   | ADD value to sequence array        | set   | `notify<void,T,EX...>("+brief",ex...)`     |
+|  *   | ACT task doubles as start seq.     | act   | `call<void,EX...>("*brief",ex...)`         |
+|  *   | NOTIFY task to start seq.          | act   | `notify<void,EX...>("*brief",ex...)`       |
+|  \~  | STOP sequence                      | act   | `call<void,EX...>("\~brief",ex...)`        |
+|  \~  | STOP sequence                      | act   | `notify<void,EX...>("\~brief",ex...)`      |
 
 [^1]: meth is the client method whose parameters match the call/notify signature
 [^2]: Signature of the server method. T is the property type on the device, EX... are an 
@@ -152,6 +152,12 @@ Future version of remote dispatch might incorporate auto-decoding dispatch for s
 Properties may have extra call parameters for routing the command to the appropriate place. For example, a short `channel` parameter might be used to route a property to the appropriate DAC channel or a `pin` parameter could indicate a digital I/O pin to set.
 
 The MM driver client is responsible for populating these extra values during the `call` dispatch command and the server is responsible for decoding the extra parameter and taking the appropriate action. The client/server RPC dispatch mechanism has variadic template arguments for precisely this reason!
+
+### Channel commands
+
+**Channel index**: Channel commands use one extra integer parameter to designate the `channel` index (zero based). Individual channels are querried using their channel index.
+
+**All channels**: We use a special channel index < 0 to designate an operation on _all_ channels. To get the maximum number of channels, call with the maximum sequence size code (`^`) and a channel index of -1. Start and Stop sequence calls can use a channel index of -1 to start all channels simultaneosly.
 
 ## Transforimg properties
 

@@ -70,8 +70,8 @@ int setup_server() {
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barB));
     bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barC));
 
-    add_to<MapT,decltype(foo)::PropAnyT>(dispatch_map, foo, foo.sequencable());
-    add_to<MapT,decltype(bars)::PropAnyT>(dispatch_map, bars, bars.all_sequencable());
+    add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable());
+    add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.all_sequencable());
 
     return 0;
 }
@@ -123,11 +123,33 @@ int main() {
     int fooval;
     client.call_get("?foo", fooval);
     cout << "foo = " << fooval << endl;
+    cout << "foo.set(120)\n";
     client.call("!foo", 120);
     client.call_get("?foo", fooval);
     cout << "foo = " << fooval << endl;
-    client.call_get("?foo", fooval);
-    cout << "foo = " << fooval << endl;
+
+    long numbars;
+
+    client.call_get("^bar", numbars, -1);
+    cout << "sizeof(bar) = " << numbars << endl;
+
+    float barval;
+    for (int i=0; i<numbars; i++) {
+        client.call_get("?bar", barval, i);
+        cout << "bar[" << i << "] = " << barval << endl;
+    }
+
+    cout << "bar.set(3.14,0)\n";
+    client.call("!bar", 3.14, 0);
+
+    cout << "bar.set(6.28,1)\n";
+    client.call("!bar", 6.28, 1);
+
+    for (int i=0; i<numbars; i++) {
+        client.call_get("?bar", barval, i);
+        cout << "bar[" << i << "] = " << barval << endl;
+    }
+
 
     delay(500);
     stop_server();

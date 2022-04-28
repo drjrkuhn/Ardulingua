@@ -29,7 +29,7 @@ namespace rdl {
     class prop_any_base {
      public:
         /** Absolute base class type, used for virtual dispatch */
-        using PropAnyT = prop_any_base<T, StrT, ExT...>;
+        using RootT = prop_any_base<T, StrT, ExT...>;
 
         prop_any_base(const StrT& brief_name) : brief_(brief_name) {}
         prop_any_base(prop_any_base& other) = default;
@@ -59,7 +59,7 @@ namespace rdl {
         virtual void add(const T value, ExT... ex) = 0;
         virtual void start(ExT... ex)              = 0;
         virtual void stop(ExT... ex)               = 0;
-        virtual bool sequencable(ExT... ex)        = 0;
+        virtual bool sequencable(ExT... ex) const  = 0;
 
         StrT message(const char opcode) { return opcode + brief_; }
 
@@ -71,52 +71,63 @@ namespace rdl {
      * Add a suite of property methods to a dispatch map.
      * 
      * @tparam MapT     Type of dispatch map using the std::map interface
-     * @tparam PropAnyT Interface type for this property (should be prop_any_type<XXX>)
+     * @tparam RootT Interface type for this property (should be prop_any_type<XXX>)
      *                  derived classes should keep track through the
-     *                  derived::PropAnyT type definition.
+     *                  derived::RootT type definition.
      * 
      * @param map           dispatch map to add to
      * @param prop          property to add
      * @param sequencable   is this property sequencable?
      * @return size_t       number of methods added to the dispatch table
      */
-    template <class MapT, class PropAnyT>
-    size_t add_to(MapT& map, PropAnyT& prop, bool sequencable) {
+    template <class MapT, class RootT>
+    size_t add_to(MapT& map, RootT& prop, bool sequencable) {
         using PairT      = typename MapT::value_type;
-        using delsig     = typename PropAnyT::json_delegates;
+        using delsig     = typename RootT::json_delegates;
         size_t startsize = map.size();
 
         map.insert(PairT(
             prop.message('?'), // get
-            delsig::get::template create<PropAnyT, &PropAnyT::get>(&prop).stub()));
+            delsig::get::template create<RootT, &RootT::get>(&prop).stub()));
         map.insert(PairT(
             prop.message('!'), // set
-            delsig::set::template create<PropAnyT, &PropAnyT::set>(&prop).stub()));
+            delsig::set::template create<RootT, &RootT::set>(&prop).stub()));
+        map.insert(PairT(
+            prop.message('^'), // max sequence size or number of channels
+            delsig::array::template create<RootT, &RootT::max_size>(&prop).stub()));
         if (sequencable) {
             map.insert(PairT(
-                prop.message('^'), // max sequence size
-                delsig::array::template create<PropAnyT, &PropAnyT::max_size>(&prop).stub()));
-            map.insert(PairT(
                 prop.message('#'), // current sequence size
-                delsig::array::template create<PropAnyT, &PropAnyT::size>(&prop).stub()));
+                delsig::array::template create<RootT, &RootT::size>(&prop).stub()));
             map.insert(PairT(
                 prop.message('0'), // clear sequence array
-                delsig::array::template create<PropAnyT, &PropAnyT::clear>(&prop).stub()));
+                delsig::array::template create<RootT, &RootT::clear>(&prop).stub()));
             map.insert(PairT(
                 prop.message('+'), // add to sequence array
-                delsig::set::template create<PropAnyT, &PropAnyT::add>(&prop).stub()));
+                delsig::set::template create<RootT, &RootT::add>(&prop).stub()));
             map.insert(PairT(
                 prop.message('*'), // start sequence
-                delsig::action::template create<PropAnyT, &PropAnyT::start>(&prop).stub()));
+                delsig::action::template create<RootT, &RootT::start>(&prop).stub()));
             map.insert(PairT(
                 prop.message('~'), // stop sequence
-                delsig::action::template create<PropAnyT, &PropAnyT::stop>(&prop).stub()));
+                delsig::action::template create<RootT, &RootT::stop>(&prop).stub()));
         }
         return map.size() - startsize;
     }
 
     /************************************************************************
-     * Base to hold a sequencable property value
+     * Base to hold a sequencable property value.
+     * 
+     * Servers can derive specialized property handlers from this base.
+     * Be sure to add `using BaseT::RootT` to keep track of the root
+     * interface class.
+     * @code{.cpp}
+     * class my_prop : public simple_prop_base<int,String,100> {
+     *   public:
+     *     using BaseT = simple_prop_base<int,String,100>;
+     *     using typename BaseT::RootT; // used for dispatch map creation
+     * ...
+     * @endcode
      *
      * @tparam T        property value type
      * @tparam StrT     strings used by the server (std::string or arudino::String)
@@ -128,7 +139,7 @@ namespace rdl {
      public:
         using BaseT = prop_any_base<T, StrT>;
         using ThisT = simple_prop_base<T, StrT, MAX_SEQ_SIZE>;
-        using typename BaseT::PropAnyT; // used for dispatch map creation
+        using typename BaseT::RootT; // used for dispatch map creation
 
         simple_prop_base(const StrT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
@@ -144,7 +155,10 @@ namespace rdl {
             value_ = value;
         }
         virtual long max_size() const override {
-            return max_size_;
+            if (sequencable())
+                return max_size_;
+            else
+                return 0;
         }
         virtual long size() const override {
             return size_;
@@ -155,7 +169,7 @@ namespace rdl {
             return 0;
         }
         virtual void add(const T value) override {
-            if (size_ >= max_size_)
+            if (size_ >= max_size_ || !sequencable())
                 return;
             values_[size_++] = value;
         }
@@ -166,7 +180,7 @@ namespace rdl {
         virtual void stop() override {
             started_ = false;
         }
-        virtual bool sequencable() override {
+        virtual bool sequencable() const override {
             return sequencable_;
         }
 
@@ -201,7 +215,7 @@ namespace rdl {
         using ThisT = channel_prop_base<T, StrT, MAX_CHANNELS>;
         using ChanT = simple_prop_base<T, StrT, 1>; // MAX_SEQ_SIZE doesn't matter for the reference
 
-        using typename BaseT::PropAnyT; // used for dispatch map creation
+        using typename BaseT::RootT; // used for dispatch map creation
 
         channel_prop_base(const StrT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
@@ -222,48 +236,62 @@ namespace rdl {
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get(int chan) const override {
-            if (chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_)
                 return channels_[chan]->get();
             else
                 return T();
         }
         virtual void set(const T value, int chan) override {
-            if (chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_)
                 channels_[chan]->set(value);
         }
+        /**
+         * Gets the maximum sequence size of a chan or
+         * the number of channels if chan<0
+         */
         virtual long max_size(int chan) const override {
-            if (chan < num_channels_)
+            if (chan < 0)
+                return num_channels_;
+            else if (chan < num_channels_)
                 return channels_[chan]->max_size();
             else
                 return 0;
         }
         virtual long size(int chan) const override {
-            if (chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_)
                 return channels_[chan]->size();
             else
                 return 0;
         }
         virtual long clear(int chan) override {
-            if (chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_)
                 return channels_[chan]->clear();
             else
                 return 0;
         }
         virtual void add(const T value, int chan) override {
-            if (chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_)
                 channels_[chan]->add(value);
         }
         virtual void start(int chan) override {
-            if (chan < num_channels_)
+            if (chan < 0) {
+                for (int i=0; i<num_channels_; i++)
+                    channels_[i]->start();
+            } else if (chan < num_channels_) {
                 channels_[chan]->start();
+            }
         }
         virtual void stop(int chan) override {
-            if (chan < num_channels_)
+            if (chan < 0) {
+                for (int i=0; i<num_channels_; i++)
+                    channels_[i]->stop();
+            } else if (chan < num_channels_) {
                 channels_[chan]->stop();
+            }
         }
 
-        virtual bool sequencable(int chan) override {
-            if (chan < num_channels_)
+        virtual bool sequencable(int chan) const override {
+            if (chan >= 0 && chan < num_channels_)
                 return channels_[chan]->sequencable();
             return false;
         }
