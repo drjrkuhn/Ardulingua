@@ -66,9 +66,16 @@ ServerT server(toserver, fromserver, dispatch_map);
 int setup_server() {
     server.logger(serverlogger);
 
-    bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barA));
-    bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barB));
-    bars.add(reinterpret_cast<decltype(bars)::ChanT*>(&barC));
+#if 1
+    // add as list
+    decltype(barA)::RootT* barlist[3] = {&barA, &barB, &barC};
+    bars.add(barlist, 3);
+#else
+    // add individually
+    bars.add(&barA);
+    bars.add(&barB);
+    bars.add(&barC);
+#endif
 
     add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable(), foo.read_only());
     add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.sequencable(-1), bars.read_only(-1));

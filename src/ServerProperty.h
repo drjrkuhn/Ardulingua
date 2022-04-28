@@ -220,8 +220,7 @@ namespace rdl {
      public:
         using BaseT = prop_any_base<T, StrT, int>;
         using ThisT = channel_prop_base<T, StrT, MAX_CHANNELS>;
-        using ChanT = simple_prop_base<T, StrT, 1>; // MAX_SEQ_SIZE doesn't matter for the reference
-
+        using ChanT = prop_any_base<T, StrT>; // MAX_SEQ_SIZE doesn't matter for the reference
         using typename BaseT::RootT; // used for dispatch map creation
 
         channel_prop_base(const StrT& brief_name)
@@ -234,7 +233,7 @@ namespace rdl {
             return num_channels_;
         }
 
-        int add(ChanT* props, int nchan) {
+        int add(ChanT* props[], int nchan) {
             if (num_channels_ + nchan > MAX_CHANNELS) return num_channels_;
             for (int i = 0; i < nchan; i++)
                 add(props[i]);
