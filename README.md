@@ -120,7 +120,7 @@ From the signature table above, we need four local method signatures for transfo
 
 The normal 'SET' call method doesn't return the value actually set on the remote device - just an OK (returns caller id) or error number. If we want to verify and retrive the value that was actually set to the device We can use a NSET then GET. A normal SET-GET RPC pair would need to wait for two replies, one from the SET call, one from the GET call. Instead we can use NSET (notify-SET, i.e. no reply) followed immediately by a GET call.
 
-A **volatile** remote property can cange behind-the-scenes. We cannot rely on a cached value and the remote property might not preserve the exact value of a SET operation. Volatile properties must:
+A **volatile** remote property can change behind-the-scenes. We cannot rely on a cached value and the remote property might not preserve the exact value of a SET operation. Volatile properties must:
 - Always Use NSET-GET pairs when setting
 - Always use GET and never use cached values.
 
@@ -134,7 +134,7 @@ Clients should first send a `^prop` GET call to query the maximum array size on 
 
 Lambda methods in the server's dispatch map can make the process of routing opcodes simpler. The server can hard-code each coded method call with a series of key/lambda function pairs. 
 
-For example in pseudo-code, a property with a value and possible sequence might be coded as lambda captures (pseudocode):
+For example in pseudo-code, a property with a value and possible sequence might be coded as lambda captures (pseudocode) (see `add_to` in src/ServerProperty.h for the full version):
 ```cpp
 map<String,function> dispatch_map {
     {"?prop", call<int>(     [&prop_]()->int            { return prop_; })},
@@ -145,7 +145,9 @@ map<String,function> dispatch_map {
     {"+prop", call<void,int>([&pseq_,&acount_](int val) { pseq_[pseq_count_++] = val; })}
 };
 ```
-Future version of remote dispatch might incorporate auto-decoding dispatch for sequencable/array properties at the server level.
+~~Future version of remote dispatch might incorporate auto-decoding dispatch for sequencable/array properties at the server level.~~
+
+See src/ServerProperty.h for an implementation of sequencable simple properties and channel properties. Derive `simple_prop_base` or `channel_prop_base` and override virtual get, set, start, stop methods to perform hardware operations. Call the base class versions to cache the current value.
 
 ## Extra parameters
 
