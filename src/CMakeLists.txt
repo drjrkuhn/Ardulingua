@@ -11,6 +11,7 @@ add_library(${CORELIB_NAME} INTERFACE
     rdl/common_rdl.h 
     rdl/ServerProperty.h
     rdl/SlipInPlace.h 
+    rdl/StringT.h
     rdl/Polyfills/std_utility.h
     rdl/Polyfills/std_type_traits.h
     rdl/Polyfills/sys_timing.h

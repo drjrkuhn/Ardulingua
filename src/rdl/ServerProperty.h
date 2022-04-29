@@ -3,6 +3,7 @@
 #ifndef __SERVERPROPERTY_H__
     #define __SERVERPROPERTY_H__
 
+    #include "StringT.h"
     #include "JsonDelegate.h"
 
 namespace rdl {
@@ -13,7 +14,6 @@ namespace rdl {
      * The prop_any_base class is the most flexible, allowing extra template
      * parameters for extra property coding.
      * 
-     * The 
      ************************************************************************/
 
 
@@ -21,16 +21,15 @@ namespace rdl {
      * Flexible virtual function interface to hold a property on a json_server
      *
      * @tparam T        property value type
-     * @tparam StrT     strings used by the server (std::string or arudino::String)
      * @tparam ExT      extra values such as channel, etc.
      ************************************************************************/
-    template <typename T, class StrT, typename... ExT>
+    template <typename T, typename... ExT>
     class prop_any_base {
      public:
         /** Absolute base class type, used for virtual dispatch */
-        using RootT = prop_any_base<T, StrT, ExT...>;
+        using RootT = prop_any_base<T, ExT...>;
 
-        prop_any_base(const StrT& brief_name) : brief_(brief_name) {}
+        prop_any_base(const StringT& brief_name) : brief_(brief_name) {}
         prop_any_base(prop_any_base& other) = default;
 
         bool operator==(const prop_any_base& other) const { return brief_ == other.brief_; }
@@ -61,10 +60,10 @@ namespace rdl {
         virtual bool sequencable(ExT... ex) const  = 0;
         virtual bool read_only(ExT... ex) const    = 0;
 
-        StrT message(const char opcode) { return opcode + brief_; }
+        StringT message(const char opcode) { return opcode + brief_; }
 
      protected:
-        StrT brief_;
+        StringT brief_;
     };
 
     /**
@@ -133,18 +132,18 @@ namespace rdl {
      * @endcode
      *
      * @tparam T        property value type
-     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     * @tparam StringT     strings used by the server (std::string or arudino::String)
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, class StrT, long MAX_SEQ_SIZE, bool READONLY=false>
-    class simple_prop_base : public prop_any_base<T, StrT> {
+    template <typename T, long MAX_SEQ_SIZE, bool READONLY=false>
+    class simple_prop_base : public prop_any_base<T> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
-        using BaseT = prop_any_base<T, StrT>;
-        using ThisT = simple_prop_base<T, StrT, MAX_SEQ_SIZE>;
+        using BaseT = prop_any_base<T>;
+        using ThisT = simple_prop_base<T, MAX_SEQ_SIZE, READONLY>;
         using typename BaseT::RootT; // used for dispatch map creation
 
-        simple_prop_base(const StrT& brief_name, const T initial, bool sequencable = false)
+        simple_prop_base(const StringT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
               value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE), 
               next_index_(0), size_(0), started_(false) {
@@ -191,7 +190,7 @@ namespace rdl {
         }
 
      protected:
-        StrT brief_;
+        StringT brief_;
         T value_;
         bool sequencable_;
         const long max_size_;
@@ -210,22 +209,22 @@ namespace rdl {
      * since this is for one-time server method dispatch setup.
      *
      * @tparam T        property value type
-     * @tparam StrT     strings used by the server (std::string or arudino::String)
+     * @tparam StringT     strings used by the server (std::string or arudino::String)
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, class StrT, int MAX_CHANNELS>
-    class channel_prop_base : public prop_any_base<T, StrT, int> {
+    template <typename T, int MAX_CHANNELS>
+    class channel_prop_base : public prop_any_base<T, int> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
-        using BaseT = prop_any_base<T, StrT, int>;
-        using ThisT = channel_prop_base<T, StrT, MAX_CHANNELS>;
-        using ChanT = prop_any_base<T, StrT>; // MAX_SEQ_SIZE doesn't matter for the reference
+        using BaseT = prop_any_base<T, int>;
+        using ThisT = channel_prop_base<T, MAX_CHANNELS>;
+        using ChanT = prop_any_base<T>; // MAX_SEQ_SIZE doesn't matter for the reference
         using typename BaseT::RootT; // used for dispatch map creation
 
-        channel_prop_base(const StrT& brief_name)
+        channel_prop_base(const StringT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
         }
-        channel_prop_base(const StrT& brief_name, ChanT* props[], int nchan)
+        channel_prop_base(const StringT& brief_name, ChanT* props[], int nchan)
             : BaseT(brief_name), num_channels_(0) {
                 add(props, nchan);
         }
@@ -332,44 +331,7 @@ namespace rdl {
         ChanT* channels_[MAX_CHANNELS];
     };
 
-    /**
-     * Fast unordered_map hash function for strings
-     * 
-     * The STL doesn't define hash functions for arduino String. And 
-     * some Arduino STL implementations like Andy's Workshop STL (based
-     * on the SGI STL) has a string hash function that is just too simple.
-     * 
-     * Jenkins one-at-a-time 32-bits hash has great coverage
-     * (little overlap) and fast speeds for short strings
-     * 
-     * see https://stackoverflow.com/questions/7666509/hash-function-for-string
-     * 
-     * to use in a STL hashmap with arduino String keys, declare the map as
-     * @code{.cpp}
-     *      using MapT = std::unordered_map<String, rdl::json_stub, string_hash<String>>;
-     *      MapT dispatch_map;
-     * @endcode
-     * 
-     * @tparam StrT     strings used by the server (std::string or arudino::String)
-     */
-    template <class StrT>
-    class string_hash {
-     public:
-        size_t operator()(const StrT& s) const {
-            size_t len      = s.length();
-            const char* key = s.c_str();
-            size_t hash, i;
-            for (hash = i = 0; i < len; ++i) {
-                hash += key[i];
-                hash += (hash << 10);
-                hash ^= (hash >> 6);
-            }
-            hash += (hash << 3);
-            hash ^= (hash >> 11);
-            hash += (hash << 15);
-            return hash;
-        }
-    };
+
 };
 
 #endif // __SERVERPROPERTY_H__

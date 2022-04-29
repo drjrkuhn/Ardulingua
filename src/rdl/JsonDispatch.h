@@ -3,6 +3,7 @@
 #ifndef __JSONDISPATCH_H__
     #define __JSONDISPATCH_H__
 
+    #include "StringT.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
     #include "Polyfills/std_utility.h"
@@ -174,7 +175,7 @@ namespace rdl {
     /************************************************************************
      * PROTOCOL BASE
      ***********************************************************************/
-    template <class IS, class OS, class STR, class LOG = logger_base<STR>>
+    template <class IS, class OS>
     class protocol_base {
      public:
         protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size,
@@ -240,7 +241,7 @@ namespace rdl {
         }
 
         // SERVER_METHOD
-        int deserialize_call(JsonDocument& msgdoc, size_t msgsize, STR& method, int& id, JsonArray& args) {
+        int deserialize_call(JsonDocument& msgdoc, size_t msgsize, StringT& method, int& id, JsonArray& args) {
             // slip decode the message
             msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
@@ -252,7 +253,7 @@ namespace rdl {
             DCS_BLK(logger_.print(SERVER_COL "\tdeserialized"); logger_.println(msgdoc));
             if (!msgdoc.containsKey(RK_METHOD))
                 return ERROR_JSON_INVALID_REQUEST;
-            method = msgdoc[RK_METHOD].as<STR>();
+            method = msgdoc[RK_METHOD].as<StringT>();
             if (!msgdoc.containsKey(RK_PARAMS))
                 return ERROR_JSON_INVALID_REQUEST;
             args = msgdoc[RK_PARAMS];
@@ -263,7 +264,7 @@ namespace rdl {
 
         // CLIENT METHOD
         template <typename... PARAMS>
-        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, STR method, const int id, PARAMS... args) {
+        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, StringT method, const int id, PARAMS... args) {
             // serialize the message
             msgdoc[RK_METHOD] = method;
             JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
@@ -329,8 +330,8 @@ namespace rdl {
             return msgdoc[RK_ERROR] | ERROR_OK;
         }
 
-        LOG& logger() { return logger_; }
-        LOG& logger(LOG& log) {
+        logger_base& logger() { return logger_; }
+        logger_base& logger(logger_base& log) {
             logger_ = log;
             return logger_;
         }
@@ -341,17 +342,17 @@ namespace rdl {
         svc::buffer buffer_;
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
-        LOG EMPTY_LOGGER;
-        LOG& logger_ = EMPTY_LOGGER;
+        logger_base EMPTY_LOGGER;
+        logger_base& logger_ = EMPTY_LOGGER;
     };
 
     /************************************************************************
      * SERVER
      ***********************************************************************/
-    template <class IS, class OS, class MAP, class STR, size_t BUFSIZE, class LOG = logger_base<STR>>
-    class json_server : public protocol_base<IS, OS, STR, LOG> {
+    template <class IS, class OS, class MAP, size_t BUFSIZE>
+    class json_server : public protocol_base<IS, OS> {
      public:
-        typedef protocol_base<IS, OS, STR, LOG> BaseT;
+        typedef protocol_base<IS, OS> BaseT;
         using BaseT::logger;
 
         json_server(IS& istream, OS& ostream, MAP& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
@@ -375,7 +376,7 @@ namespace rdl {
             JsonArray args = msg.as<JsonArray>(); // dummy initializion
             StaticJsonDocument<svc::JRESULT_SIZE> resultdoc;
             JsonVariant result = resultdoc.as<JsonVariant>();
-            STR method;
+            StringT method;
             auto mapit = dispatch_map_.end();
             int id = -1, err = ERROR_OK;
             for (;;) { // "try" clause. Always use break to exit
@@ -393,7 +394,7 @@ namespace rdl {
                         logger_.println(err);
                     } else {
                         logger_.print(" -> ");
-                        logger_.println(result.as<STR>());
+                        logger_.println(result.as<StringT>());
                     });
                 break;
             }
@@ -429,10 +430,10 @@ namespace rdl {
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <class IS, class OS, class STR, size_t BUFSIZE, class LOG = rdl::logger_base<STR>>
-    class json_client : protocol_base<IS, OS, STR, LOG> {
+    template <class IS, class OS, size_t BUFSIZE>
+    class json_client : protocol_base<IS, OS> {
      public:
-        typedef protocol_base<IS, OS, STR, LOG> BaseT;
+        typedef protocol_base<IS, OS> BaseT;
         using BaseT::logger;
 
         json_client(IS& istream, OS& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,

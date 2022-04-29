@@ -1,3 +1,4 @@
+#include <rdl/StringT.h>
 #include <rdl/ServerProperty.h>
 #include <rdl/JsonDelegate.h>
 #include <rdl/JsonDispatch.h>
@@ -19,22 +20,20 @@
 using namespace rdl;
 using namespace arduino;
 
-using StringT = std::string;
-
 Print_stdostream<std::ostream> cout_Print(std::cout);
-using LoggerT = logger_base<Print, StringT>;
+using LoggerT = logger_base<Print>;
 LoggerT clientlogger(&cout_Print);
 LoggerT serverlogger(&cout_Print);
 
-using MapT = std::unordered_map<StringT, json_stub, string_hash<StringT>>;
+using MapT = std::unordered_map<StringT, json_stub, string_hash>;
 
 MapT dispatch_map;
 
 template <typename T>
-using simple_prop = simple_prop_base<T, StringT, 64>;
+using simple_prop = simple_prop_base<T, 64>;
 
 template <typename T>
-using channel_prop = channel_prop_base<T, StringT, 10>;
+using channel_prop = channel_prop_base<T, 10>;
 
 simple_prop<int> foo("foo", 1);
 simple_prop<float> barA("barA", 1.0);
@@ -54,8 +53,8 @@ using StreamT = Stream_stdstream<std::stringstream>;
 StreamT toserver(ss_toserver);
 StreamT fromserver(ss_fromserver);
 
-using ServerT = json_server<StreamT, StreamT, MapT, StringT, 512, LoggerT>;
-using ClientT = json_client<StreamT, StreamT, StringT, 512, LoggerT>;
+using ServerT = json_server<StreamT, StreamT, MapT, 512>;
+using ClientT = json_client<StreamT, StreamT, 512>;
 
 ////////// SERVER CODE /////////////
 

@@ -27,31 +27,81 @@
 
 #pragma once
 
+#include "common_rdl.h"
+
 #ifndef __STRINGT_H__
-#define __STRINGT_H__
+    #define __STRINGT_H__
 
-
-namespace rdl {
-
-#ifdef ARDUINO
-    #ifdef __has_include
-        #if __has_include(<String.h>)
-            #include <String.h>
-        #elif __has_include(<WString.h>)
-            #include <WString.h>
-        #else
-            #error Could not find Arduino String definition 
+    #ifdef ARDUINO
+        #ifdef __has_include
+            #if __has_include(<String.h>)
+                #include <String.h>
+            #elif __has_include(<WString.h>)
+                #include <WString.h>
+            #else
+                #error Could not find Arduino String definition
+            #endif
         #endif
-    #endif
+namespace rdl {
     using StringT = String;
 
-#else
-    #include <string>
-    using StringT = std::string;
+    __ALWAYS_INLINE__ StringT& append(StringT& str, const char c) {
+        str.concat(c);
+        return str;
+    }
 
-#endif
+    __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(c); }
+}
+
+    #else
+        #include <string>
+namespace rdl {
+    using StringT = std::string;
+    class __FlashStringHelper;
+
+    // No single-argument char to string constructor or append. It is always (count, char)
+    __ALWAYS_INLINE__ StringT& append(StringT& str, const char c) { return str.append(1, c); }
+    __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(1, c); }
+}
+    #endif
+
+namespace rdl {
+    /**
+     * Fast unordered_map hash function for strings
+     * 
+     * The STL doesn't define hash functions for arduino String. And 
+     * some Arduino STL implementations like Andy's Workshop STL (based
+     * on the SGI STL) has a string hash function that is just too simple.
+     * 
+     * Jenkins one-at-a-time 32-bits hash has great coverage
+     * (little overlap) and fast speeds for short strings
+     * 
+     * see https://stackoverflow.com/questions/7666509/hash-function-for-string
+     * 
+     * to use in a STL hashmap with arduino String keys, declare the map as
+     * @code{.cpp}
+     *      using MapT = std::unordered_map<StringT, rdl::json_stub, string_hash>;
+     *      MapT dispatch_map;
+     * @endcode
+     */
+    class string_hash {
+     public:
+        size_t operator()(const StringT& s) const {
+            size_t len      = s.length();
+            const char* key = s.c_str();
+            size_t hash, i;
+            for (hash = i = 0; i < len; ++i) {
+                hash += key[i];
+                hash += (hash << 10);
+                hash ^= (hash >> 6);
+            }
+            hash += (hash << 3);
+            hash ^= (hash >> 11);
+            hash += (hash << 15);
+            return hash;
+        }
+    };
 
 }; // namespace rdl
-
 
 #endif // __STRINGT_H__

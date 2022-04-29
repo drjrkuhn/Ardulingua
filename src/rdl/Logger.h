@@ -3,6 +3,7 @@
 #ifndef __LOGGER_H__
     #define __LOGGER_H__
 
+    #include "StringT.h"
     #include <ArduinoJson.h>
 
 class Printable;
@@ -16,13 +17,12 @@ namespace rdl {
         #define DEC 10
     #endif
 
-    template <class STR>
     class NULL_Printer  {
      public:
         inline size_t write(const unsigned char*, size_t) { return 0; }
         inline size_t write(const char*) { return 0; }
         inline size_t write(uint8_t) { return 0; }
-        inline size_t print(const STR&) { return 0; }
+        inline size_t print(const StringT&) { return 0; }
         inline size_t print(const char[]) { return 0; }
         inline size_t print(char) { return 0; }
         inline size_t print(unsigned char, int = DEC) { return 0; }
@@ -38,7 +38,7 @@ namespace rdl {
         inline size_t print(double, int = 2) { return 0; }
         inline size_t print(const Printable&) { return 0; }
 
-        inline size_t println(const STR&) { return 0; }
+        inline size_t println(const StringT&) { return 0; }
         inline size_t println(const char[]) { return 0; }
         inline size_t println(char) { return 0; }
         inline size_t println(unsigned char, int = DEC) { return 0; }
@@ -77,7 +77,7 @@ namespace rdl {
             stream_ << c;
             return stream_.tellp() - s;
         }
-        inline size_t print(const std::string& s) { return write(s); }
+        inline size_t print(const StringT& s) { return write(s); }
         inline size_t print(const char s[]) { return write(s); }
         inline size_t print(char) { return write(c); }
         inline size_t print(unsigned char n, int base = DEC) { return print_unsigned(n, base); }
@@ -97,7 +97,7 @@ namespace rdl {
         }
         inline size_t print(const Printable& x) { return x.printTo(*this); }
 
-        inline size_t println(const std::string& s) { return print(s) + println(); }
+        inline size_t println(const StringT& s) { return print(s) + println(); }
         inline size_t println(const char s[]) { return print(s) + println(); }
         inline size_t println(char c) { return print(c) + println(); }
         inline size_t println(unsigned char n, int b = DEC) { return print(n, b) + println(); }
@@ -136,7 +136,7 @@ namespace rdl {
         bool debug_only_;
     };
 
-    template <class Print, class STR>
+    template <class Print>
     class logger_base {
      public:
         logger_base() : printer_(nullptr) {}

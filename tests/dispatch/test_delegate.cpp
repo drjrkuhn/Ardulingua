@@ -2,8 +2,8 @@
  * Copyright (c) 2022 MIT.  All rights reserved.
  */
 
+#include <rdl/StringT.h>
 #include <rdl/Delegate.h>
-#include <string>
 #include <tuple>
 
 /**************************************************************************************
@@ -38,16 +38,6 @@ template <typename T>
 struct D_base : public C_base<T> {
     using BT = C_base<T>;
     using BT::v;
-    // using BT::set;
-    // using BT::get;
-    // using BT::getr;
-    // using BT::ifv;
-    // using BT::ifii;
-    // using BT::ifv_c;
-    // using BT::ifi_c;
-    // using BT::ifii_c;
-
-
     D_base(T _v) : C_base<T>(_v) {}
     virtual T ifi(T cc) { return cc + 3 * v; }
 };
