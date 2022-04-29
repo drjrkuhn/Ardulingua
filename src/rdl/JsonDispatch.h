@@ -7,8 +7,8 @@
     #include "Logger.h"
     #include "Polyfills/std_utility.h"
     #include "Polyfills/sys_timing.h"
+    #include "SlipInPlace.h"
     #include <ArduinoJson.h>
-    #include <SlipInPlace.h>
     #include <thread>
     #include <unordered_map>
 

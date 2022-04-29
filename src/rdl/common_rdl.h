@@ -14,6 +14,4 @@
         #endif
     #endif
 
-
-
 #endif //__RDL_COMMON_H__

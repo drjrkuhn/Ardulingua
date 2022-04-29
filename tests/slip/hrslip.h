@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <SlipInPlace.h>
+#include <rdl/SlipInPlace.h>
 #include <cassert>
 #include <string>
 

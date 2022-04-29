@@ -4,14 +4,16 @@ project(${CORELIB_NAME} VERSION 0.1.0)
 message("CORELIB_NAME = ${CORELIB_NAME}")
 
 add_library(${CORELIB_NAME} INTERFACE 
-    Delegate.h 
-    Jsondelegate.h 
-    JsonDispatch.h 
-    Logger.h 
-    common_rdl.h 
-    SlipInPlace.h 
-    Polyfills/std_utility.h
-    Polyfills/std_type_traits.h
+    rdl/Delegate.h 
+    rdl/Jsondelegate.h 
+    rdl/JsonDispatch.h 
+    rdl/Logger.h 
+    rdl/common_rdl.h 
+    rdl/ServerProperty.h
+    rdl/SlipInPlace.h 
+    rdl/Polyfills/std_utility.h
+    rdl/Polyfills/std_type_traits.h
+    rdl/Polyfills/sys_timing.h
 )
 target_compile_features(${CORELIB_NAME} INTERFACE cxx_std_11)
 target_include_directories(${CORELIB_NAME} INTERFACE .  ../../ArduinoJson/src  ../../ArduinoCore-host/api)
