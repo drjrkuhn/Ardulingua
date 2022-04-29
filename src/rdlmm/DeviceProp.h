@@ -10,7 +10,7 @@
     #include <iomanip>
     #include <limits>
 
-namespace rdl {
+namespace rdlmm {
 
     /*******************************************************************
      * DeviceProp_Base

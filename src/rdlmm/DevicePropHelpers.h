@@ -6,13 +6,13 @@
 
     #define NOMINMAX
     //#include "DeviceBase.h"
-    //#include "MMDevice.h"
+    //#include <MMDevice.h>
     //#include <limits>
     #include <map>
     #include <string>
     #include <type_traits>
 
-namespace rdl {
+namespace rdlmm {
 
     /*******************************************************************
     * enable_if switches for MM::PropertyTypes

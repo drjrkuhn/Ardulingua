@@ -6,10 +6,10 @@
     #include "DeviceError.h"
     #include "DeviceProp.h"
     #include "DevicePropHelpers.h"
-    #include <Delegate.h>
-    #include <JsonDispatch.h>
+    #include "StreamAdapter.h"
+    #include "../rdl/Delegate.h"
+    #include "../rdl/JsonDispatch.h"
     #include <Stream.h>
-    #include <StreamAdapter.h>
     #include <tuple>
 
 /************************************************************************
@@ -149,7 +149,7 @@
      * sending the remote property.
      * 
      ***********************************************************************/
-namespace rdl {
+namespace rdlmm {
 
     #ifndef REMOTE_PROP_ARRAY_CHUNK_SIZE
         #define REMOTE_PROP_ARRAY_CHUNK_SIZE 10
@@ -162,7 +162,7 @@ namespace rdl {
         using ThisT          = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
         using ActionT        = MM::Action<ThisT>;
         using StreamAdapterT = HubStreamAdapter<DeviceT, arduino::Stream>;
-        using ClientT        = json_client<StreamAdapterT, StreamAdapterT, std::string, JSONRCP_BUFFER_SIZE>;
+        using ClientT        = rdl::json_client<StreamAdapterT, StreamAdapterT, std::string, JSONRCP_BUFFER_SIZE>;
         using ExtrasT        = std::tuple<ExT...>;
 
         RemoteProp_Base() : client_(nullptr) {}

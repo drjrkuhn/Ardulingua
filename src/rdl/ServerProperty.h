@@ -8,8 +8,7 @@
 namespace rdl {
 
     /************************************************************************
-     * Property dispatch methods that are designed to work either with
-     * arduino::String or std::string as the property lookup.
+     * Property dispatch methods using Strings for property lookup.
      * 
      * The prop_any_base class is the most flexible, allowing extra template
      * parameters for extra property coding.

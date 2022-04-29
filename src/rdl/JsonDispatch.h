@@ -429,7 +429,7 @@ namespace rdl {
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <class IS, class OS, class STR, size_t BUFSIZE, class LOG = logger_base<STR>>
+    template <class IS, class OS, class STR, size_t BUFSIZE, class LOG = rdl::logger_base<STR>>
     class json_client : protocol_base<IS, OS, STR, LOG> {
      public:
         typedef protocol_base<IS, OS, STR, LOG> BaseT;

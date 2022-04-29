@@ -8,7 +8,7 @@
     #include <type_traits>
     #include <vector>
 
-namespace rdl {
+namespace rdlmm {
 
     /**
      * Property creation information using builder pattern.

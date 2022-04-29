@@ -5,7 +5,7 @@
 
     #include "DeviceProp.h"
 
-namespace rdl {
+namespace rdlmm {
 
     /* Think of the the Properties as simple storage containers
 * The BeforeGet action occurs before the Device Adapter's 

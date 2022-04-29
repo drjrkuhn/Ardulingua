@@ -10,7 +10,7 @@
     #include <string>
     #include <type_traits>
 
-namespace rdl {
+namespace rdlmm {
 
     /** Common errors */
     #define ERR_UNKNOWN_POSITION 101

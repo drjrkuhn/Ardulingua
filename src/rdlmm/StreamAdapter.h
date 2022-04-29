@@ -7,7 +7,7 @@
     #include <deque>
     #include <mutex>
 
-namespace rdl {
+namespace rdlmm {
 
     namespace svc {
         /** Our read deque buffers a single character so we can `peek` at the first character. */
