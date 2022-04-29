@@ -232,5 +232,3 @@ namespace arduino {
     };
 
 } // namespace arduino
-
-using arduino::Print;
