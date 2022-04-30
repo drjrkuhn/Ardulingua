@@ -3,6 +3,7 @@
 #ifndef __DEVICEERROR_H__
     #define __DEVICEERROR_H__
 
+    #include "../rdl/sys_StringT.h"
     #define NOMINMAX
     #include <DeviceBase.h>
     #include <MMDeviceConstants.h>
@@ -82,7 +83,7 @@ namespace rdlmm {
             : error(error), file(file), line(line) {}
 
         template <typename DEV>
-        inline std::string format(const DEV* device) {
+        inline sys::StringT format(const DEV* device) {
             char text[MM::MaxStrLength];
             std::stringstream os;
             os << file << "(" << line << "): ";
@@ -93,7 +94,7 @@ namespace rdlmm {
             return os.str();
         }
 
-        inline std::string format() {
+        inline sys::StringT format() {
             std::stringstream os;
             os << file << "(" << line << "): ";
             os << " error " << error;
@@ -114,14 +115,14 @@ namespace rdlmm {
 
     #ifndef ASSERT_OK
         // Must be macro to get __FILE__ and __LINE__
-        #define ASSERT_OK(RET) rdl::assertResult((RET), __FILE__, __LINE__)
+        #define ASSERT_OK(RET) rdlmm::assertResult((RET), __FILE__, __LINE__)
     #endif
 
     #ifndef ASSERT_TRUE
         // Must be macro to get __FILE__ and __LINE__
         #define ASSERT_TRUE(COND, ERROR)                        \
             if (!(COND)) {                                      \
-                rdl::assertResult((ERROR), __FILE__, __LINE__); \
+                rdlmm::assertResult((ERROR), __FILE__, __LINE__); \
             }
 
     #endif

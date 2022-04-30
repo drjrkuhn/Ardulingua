@@ -38,7 +38,7 @@ namespace sys {
 		size_t startlen = dest.length();
 		do {
 			numT digit = number % base;
-			number = number / base;
+			number = static_cast<numT>(number / base);
 			dest.push_back(static_cast<char>(digit < 10 ? digit + '0' : digit + 'A' - 10));
 		} while (number != 0);
 		if (!reversed)
@@ -84,7 +84,7 @@ namespace sys {
 	 * print exponential notation.
 	 */
 	template<typename numT, typename std::enable_if<std::is_floating_point<numT>::value, bool>::type = true>
-	sys::StringT& appendNumber(sys::StringT& dest, numT number, int decimalPlaces, bool dummy = false)
+	sys::StringT& appendNumber(sys::StringT& dest, numT number, int decimalPlaces, bool = false)
 	{
 		if (decimalPlaces < 0)
 			decimalPlaces = 2;

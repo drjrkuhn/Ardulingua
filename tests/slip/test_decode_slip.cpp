@@ -4,8 +4,8 @@
 
 #include "hrslip.h"
 #include <catch.hpp>
+#include <rdl/sys_StringT.h>
 #include <rdl/SlipInPlace.h>
-#include <string>
 
 /**************************************************************************************
  * INCLUDE/MAIN
@@ -22,7 +22,7 @@ TEST_CASE("decoder_slip out-of-place large buffer", "[decoder_slip-oop-01]") {
     WHEN("empty input") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hrnull, test_decoder>("");
+        sys::StringT srcstr = recode<slip_decoder_hrnull, test_decoder>("");
         REQUIRE(0 == srcstr.length());
         REQUIRE(0 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
@@ -32,30 +32,30 @@ TEST_CASE("decoder_slip out-of-place large buffer", "[decoder_slip-oop-01]") {
     WHEN("single end at input") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("#");
         REQUIRE(1 == srcstr.length());
         REQUIRE(0 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(0 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
-        std::string dest = recode<test_decoder, slip_decoder_hr>(buf, dc_size);
+        sys::StringT dest = recode<test_decoder, slip_decoder_hr>(buf, dc_size);
         REQUIRE("" == recode<test_decoder, slip_decoder_hrnull>(buf, dc_size));
     }
 
     WHEN("no specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lorus#");
         REQUIRE(6 == srcstr.length());
         REQUIRE(5 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(5 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
         REQUIRE("Lorus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         /* Standard SLIP: END =\300 ESC =\333 ESCEND =\334 ESCESC =\335 */
-        REQUIRE("Lorus" == std::string(buf, dc_size));
+        REQUIRE("Lorus" == sys::StringT(buf, dc_size));
     }
 
     WHEN("bad encoding") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lo^_rus#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lo^_rus#");
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         // decoded_size does not detect bad encoding!
@@ -65,48 +65,48 @@ TEST_CASE("decoder_slip out-of-place large buffer", "[decoder_slip-oop-01]") {
     WHEN("consecutive specials") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lo^[^Drus#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lo^[^Drus#");
         REQUIRE(10 == srcstr.length());
         REQUIRE(7 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(7 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
         REQUIRE("Lo^#rus" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         /* Standard SLIP: END =\300 ESC =\333 ESCEND =\334 ESCESC =\335 */
-        REQUIRE("Lo\333\300rus" == std::string(buf, dc_size));
+        REQUIRE("Lo\333\300rus" == sys::StringT(buf, dc_size));
     }
 
     WHEN("ESC at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[#");
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(6 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
         REQUIRE("Lorus^" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         /* Standard SLIP: END =\300 ESC =\333 ESCEND =\334 ESCESC =\335 */
-        REQUIRE("Lorus\333" == std::string(buf, dc_size));
+        REQUIRE("Lorus\333" == sys::StringT(buf, dc_size));
     }
 
     WHEN("END at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^D#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^D#");
         REQUIRE(8 == srcstr.length());
         REQUIRE(6 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(6 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
         REQUIRE("Lorus#" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         /* Standard SLIP: END =\300 ESC =\333 ESCEND =\334 ESCESC =\335 */
-        REQUIRE("Lorus\300" == std::string(buf, dc_size));
+        REQUIRE("Lorus\300" == sys::StringT(buf, dc_size));
     }
 
     WHEN("consecutive specials at end") {
         const size_t bsize = 20;
         char buf[bsize];
-        std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[^D^D#");
+        sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lorus^[^D^D#");
         REQUIRE(12 == srcstr.length());
         REQUIRE(8 == test_decoder::decoded_size(srcstr.c_str(), srcstr.length()));
         REQUIRE(8 == (dc_size = test_decoder::decode(buf, bsize, srcstr.c_str(), srcstr.length())));
         REQUIRE("Lorus^##" == recode<test_decoder, slip_decoder_hr>(buf, dc_size));
         /* Standard SLIP: END =\300 ESC =\333 ESCEND =\334 ESCESC =\335 */
-        REQUIRE("Lorus\333\300\300" == std::string(buf, dc_size));
+        REQUIRE("Lorus\333\300\300" == sys::StringT(buf, dc_size));
     }
 }

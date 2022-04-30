@@ -4,8 +4,8 @@
 
 #include "hrslip.h"
 #include <catch.hpp>
+#include <rdl/sys_StringT.h>
 #include <rdl/SlipInPlace.h>
-#include <string>
 
 /**************************************************************************************
  * INCLUDE/MAIN
@@ -18,7 +18,7 @@ using test_decoder = slip_decoder_hr;
 
 TEST_CASE("slip_decoder_hr large buffer", "[slip_decoder_hr-01]") {
     size_t dc_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
 
     bool INPLACE = GENERATE(false, true);
@@ -98,7 +98,7 @@ TEST_CASE("slip_decoder_hr large buffer", "[slip_decoder_hr-01]") {
         // INPLACE
         dc_size = test_decoder::decode(buf, bsize, src, srcstr.length());
         REQUIRE(dc_size == 6);
-        std::string dest = recode<test_decoder, slip_decoder_hr>(buf, dc_size);
+        sys::StringT dest = recode<test_decoder, slip_decoder_hr>(buf, dc_size);
         REQUIRE(dest == "Lorus#");
     }
 
@@ -116,7 +116,7 @@ TEST_CASE("slip_decoder_hr large buffer", "[slip_decoder_hr-01]") {
 
 TEST_CASE("slip_decoder_hr exact buffer", "[slip_decoder_hr-02]") {
     size_t dc_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
     const int MAXBUF = 30;
 
@@ -197,7 +197,7 @@ TEST_CASE("slip_decoder_hr exact buffer", "[slip_decoder_hr-02]") {
 
 TEST_CASE("slip_decoder_hr buffer overrun", "[slip_decoder_hr-02]") {
     size_t dc_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
     const int MAXBUF = 30;
 
@@ -263,7 +263,7 @@ TEST_CASE("slip_decoder_hr bad inputs", "[slip_decoder_hr-04]") {
     const size_t bsize = 20;
     char buf[bsize];
     size_t dc_size;
-    std::string srcstr = recode<slip_decoder_hr, test_decoder>("Lorus");
+    sys::StringT srcstr = recode<slip_decoder_hr, test_decoder>("Lorus");
 
     bool INPLACE = GENERATE(false, true);
 

@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include <rdl/sys_StringT.h>
 #include <rdl/SlipInPlace.h>
 #include <cassert>
-#include <string>
 
 #ifndef __HRSLIP_H__
     #define __HRSLIP_H__
@@ -17,8 +17,8 @@ namespace rdl {
     typedef rdl::svc::decoder_base<char, '#', 'D', '^', '[', '0', '@'> slip_decoder_hrnull;
 
     template <class FROM, class TO>
-    std::string recode(const std::string& src) {
-        std::string dest = src;
+    sys::StringT recode(const sys::StringT& src) {
+        sys::StringT dest = src;
         using to_char_t = typename TO::char_type;
         if (src.length() == 0)
             return dest;
@@ -31,8 +31,8 @@ namespace rdl {
     }
 
     template <class FROM, class TO>
-    std::string recode(const char* src, size_t size) {
-        return recode<FROM, TO>(std::string(src, size));
+    sys::StringT recode(const char* src, size_t size) {
+        return recode<FROM, TO>(sys::StringT(src, size));
     }
 };
 

@@ -3,6 +3,8 @@
 #ifndef __DEVICE_PROP__
     #define __DEVICE_PROP__
 
+    #include "../rdl/sys_StringT.h"
+    
     #define NOMINMAX
     #include "DevicePropHelpers.h"
     #include "PropInfo.h"
@@ -41,10 +43,10 @@ namespace rdlmm {
         void setNotifyChange(NotifyChangeFnT& notifyChangeFunc) { notifyChangeFunc_ = notifyChangeFunc; }
 
         /** Get the property name */
-        const std::string name() const { return name_; }
+        const sys::StringT name() const { return name_; }
 
         /** Get the property brief name (for remote) */
-        const std::string brief() const { return brief_; }
+        const sys::StringT brief() const { return brief_; }
 
         /** Get the read-only flag */
         bool isReadOnly() const { return isReadOnly; }
@@ -151,7 +153,7 @@ namespace rdlmm {
                 ret = device->SetPropertyLimits(checkedInfo.name().c_str(), checkedInfo.minValue(), checkedInfo.maxValue());
             }
             if (checkedInfo.hasAllowedValues()) {
-                std::vector<std::string> allowedStrings;
+                std::vector<sys::StringT> allowedStrings;
                 for (PropT aval : checkedInfo.allowedValues()) {
                     allowedStrings.push_back(ToString(aval));
                 }
@@ -173,8 +175,8 @@ namespace rdlmm {
               notifyChangeFunc_(nullptr) {}
 
         DeviceT* device_;
-        std::string name_;
-        std::string brief_;
+        sys::StringT name_;
+        sys::StringT brief_;
         PropT cachedValue_;
         bool isReadOnly_;
         bool isSequencable_;
@@ -254,7 +256,7 @@ namespace rdlmm {
                 ret = device->SetPropertyLimits(checkedInfo.name(), checkedInfo.minValue(), checkedInfo.maxValue());
             }
             if (checkedInfo.hasAllowedValues()) {
-                std::vector<std::string> allowedStrings;
+                std::vector<sys::StringT> allowedStrings;
                 for (PropT aval : checkedInfo.allowedValues()) {
                     allowedStrings.push_back(ToString(aval));
                 }

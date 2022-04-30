@@ -3,8 +3,8 @@
 #ifndef __PROPINFO_H__
     #define __PROPINFO_H__
 
+    #include "../rdl/sys_StringT.h"
     #include <ostream>
-    #include <string>
     #include <type_traits>
     #include <vector>
 
@@ -25,8 +25,8 @@ namespace rdlmm {
         /** 
         * Factory method to creating a PropInfo with an initial value. 
         * This templated version is neccessary to catch potential problems such as
-        * @code{.cpp} PropInfo<std::string> build("foo",0); @endcode 
-        * which tries to inialize a std::string from a null pointer. 
+        * @code{.cpp} PropInfo<sys::StringT> build("foo",0); @endcode 
+        * which tries to inialize a sys::StringT from a null pointer. 
         */
         template <typename U, typename std::enable_if<std::is_convertible<U, PropT>::value, bool>::type = true>
         static PropInfo build(const char* name, const U& initialValue) {
@@ -129,10 +129,10 @@ namespace rdlmm {
          * Getters
          *******************************************************************/
         /** Get the property name. */
-        const std::string& name() const { return name_; }
+        const sys::StringT& name() const { return name_; }
 
         /** Get the property brief name (for remote). */
-        const std::string& brief() const { return brief_; }
+        const sys::StringT& brief() const { return brief_; }
 
         /** Get the initial property value. */
         PropT initialValue() const { return initialValue_; }
@@ -191,8 +191,8 @@ namespace rdlmm {
             : name_(name), initialValue_(initialValue), hasInitialValue_(true) {}
         PropInfo(const char* name) : name_(name), hasInitialValue_(false) {}
 
-        std::string name_;
-        std::string brief_;
+        sys::StringT name_;
+        sys::StringT brief_;
         PropT initialValue_;
         bool hasInitialValue_ = false;
         bool isPreInit_       = false;
@@ -205,8 +205,8 @@ namespace rdlmm {
         std::vector<PropT> allowedValues_;
     };
 
-    inline PropInfo<std::string> ErrorPropInfo(const char* name, std::string& error) {
-        return PropInfo<std::string>::build(name, error).readOnly().preInit();
+    inline PropInfo<sys::StringT> ErrorPropInfo(const char* name, sys::StringT& error) {
+        return PropInfo<sys::StringT>::build(name, error).readOnly().preInit();
     }
 
 }; // namespace rdl

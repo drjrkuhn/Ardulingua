@@ -4,8 +4,8 @@
 
 #include "hrslip.h"
 #include <catch.hpp>
+#include <rdl/sys_StringT.h>
 #include <rdl/SlipInPlace.h>
-#include <string>
 
 /**************************************************************************************
  * INCLUDE/MAIN
@@ -18,7 +18,7 @@ using test_encoder = slip_encoder_hr;
 
 TEST_CASE("encode_hr large buffer", "[slip_encoder_hr-01]") {
     size_t ec_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
 
     bool INPLACE = GENERATE(false, true);
@@ -92,7 +92,7 @@ TEST_CASE("encode_hr large buffer", "[slip_encoder_hr-01]") {
 
 TEST_CASE("encode_hr exact buffer", "[slip_encoder_hr-02]") {
     size_t ec_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
     const int MAXBUF = 30;
 
@@ -173,7 +173,7 @@ TEST_CASE("encode_hr exact buffer", "[slip_encoder_hr-02]") {
 
 TEST_CASE("encode_hr buffer overrun", "[slip_encoder_hr-03]") {
     size_t ec_size;
-    std::string srcstr;
+    sys::StringT srcstr;
     const char* src;
     const int MAXBUF = 30;
 
@@ -234,7 +234,7 @@ TEST_CASE("encode_hr bad inputs", "[slip_encoder_hr-04]") {
     const size_t bsize = 20;
     char buf[bsize];
     size_t ec_size;
-    std::string srcstr = recode<slip_decoder_hr, test_encoder>("Lorus");
+    sys::StringT srcstr = recode<slip_decoder_hr, test_encoder>("Lorus");
     const char* src    = srcstr.c_str();
 
     WHEN("NULL buffer") {

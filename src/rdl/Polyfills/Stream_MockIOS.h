@@ -164,7 +164,7 @@ namespace sys {
             if (g < 0)
                 g = 0;
             long headlen = g;
-            long taillen = len - p;
+            //long taillen = len - p;
             sys::StringT ptrs;
             if (headlen - 1 > 0)
                 ptrs.append((headlen - 1), '.');

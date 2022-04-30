@@ -4,6 +4,7 @@ project(${CORELIB_NAME} VERSION 0.1.0)
 message("CORELIB_NAME = ${CORELIB_NAME}")
 
 add_library(${CORELIB_NAME} INTERFACE 
+    Ardulingua.h
     rdl/Common.h
     rdl/Delegate.h 
     rdl/Jsondelegate.h 

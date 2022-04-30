@@ -5,15 +5,12 @@
 
     #include "sys_PrintT.h"
     #include "sys_StringT.h"
+    #include <ArduinoJson.h>
     #include <iomanip>
     #include <sstream>
-    #include <ArduinoJson.h>
+    #include <limits.h> // for INT_MAX
 
 namespace rdl {
-
-    #ifndef DEC
-        #define DEC 10
-    #endif
 
     class Null_Print : public sys::PrintT {
      public:
@@ -21,52 +18,6 @@ namespace rdl {
         virtual size_t write(const uint8_t*, size_t) override { return 0; }
         virtual int availableForWrite() override { return 0; }
         virtual void flush() override {}
-    };
-
-    template <class DeviceT>
-    class DeviceLog_Print : public sys::PrintT {
-     public:
-        DeviceLog_Print() : device_(nullptr), debug_only_(true) {}
-        DeviceLog_Print(DeviceT* device, bool debug_only) : device_(device), debug_only_(debug_only) {}
-
-        virtual size_t write(const uint8_t uc) override {
-            char c = static_cast<char>(c);
-            if (c == '\n') {
-                send_to_log(1);
-                return 1;
-            }
-            size_t w = stream_.tellp();
-            stream_.put(c);
-            w = stream_.tellp() - w;
-            return w;
-        }
-        virtual size_t write(const uint8_t* ucbuf, size_t size) override {
-            const char* buf = reinterpret_cast<const char*>(ucbuf);
-            if (strncmp(buf, "\r\n", 2)) {
-                send_to_log(2);
-                return 2;
-            }
-            size_t w = stream_.tellp();
-            stream_.write(buf, size);
-            w = stream_.tellp() - w;
-            return w;
-        }
-        virtual int availableForWrite() override { return SIZE_MAX; }
-        virtual void flush() override {}
-
-     protected:
-        void send_to_log(int endsize) {
-            if (device_) {
-                sys::StringT str = stream_.str();
-                size_t len  = str.length();
-                device_->LogMessage(str, len - endsize, debug_only_);
-            }
-            stream_.str("");
-        }
-
-        DeviceT* device_;
-        std::ostringstream stream_;
-        bool debug_only_;
     };
 
     size_t print(sys::PrintT& printer, JsonDocument& doc) {

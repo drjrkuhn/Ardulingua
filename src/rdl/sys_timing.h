@@ -11,13 +11,11 @@
 namespace sys {
     // import from Arduino's global namespace
     // SEE devel/namespace_test for other examples of namespace alias definitions
-    inline constexpr auto yield = ::yield;
-    inline constexpr auto delay = ::delay;
-    inline void yield(void) { ::yield(); }
-    inline void delay(uint32_t msec) { ::delay(msec); }
-    inline void delayMicroseconds(uint32_t usec) { ::delayMicroseconds(usec); }
-    inline uint32_t millis(void) { return ::millis(); }
-    inline uint32_t micros(void) { return ::micros(); }
+    constexpr auto yield = ::yield;
+    constexpr auto delay = ::delay;
+    constexpr auto delayMicroseconds = ::delayMicroseconds;
+    constexpr auto millis = ::millis;
+    constexpr auto micros = ::micros;
 } // namespace
         #else
             #include <chrono>

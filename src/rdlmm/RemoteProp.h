@@ -3,13 +3,13 @@
 #ifndef __REMOTEPROP_H__
     #define __REMOTEPROP_H__
 
+    #include "../rdl/sys_StringT.h"
     #include "DeviceError.h"
     #include "DeviceProp.h"
     #include "DevicePropHelpers.h"
-    #include "StreamAdapter.h"
+    #include "Stream_HubSerial.h"
     #include "../rdl/Delegate.h"
     #include "../rdl/JsonDispatch.h"
-    #include <Stream.h>
     #include <tuple>
 
 /************************************************************************
@@ -161,15 +161,15 @@ namespace rdlmm {
         using BaseT          = DeviceProp_Base<DeviceT, LocalT>;
         using ThisT          = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
         using ActionT        = MM::Action<ThisT>;
-        using StreamAdapterT = HubStreamAdapter<DeviceT, arduino::Stream>;
-        using ClientT        = rdl::json_client<StreamAdapterT, StreamAdapterT, std::string, JSONRCP_BUFFER_SIZE>;
+        using StreamAdapterT = rdlmm::Stream_HubSerial<DeviceT>;
+        using ClientT        = rdl::json_client<StreamAdapterT, StreamAdapterT, JSONRCP_BUFFER_SIZE>;
         using ExtrasT        = std::tuple<ExT...>;
 
         RemoteProp_Base() : client_(nullptr) {}
         ClientT* client_;
         ExtrasT extra_;
-        delegate<RetT<RemoteT>, LocalT> to_remote_fn_;
-        delegate<RetT<LocalT>, RemoteT> to_local_fn_;
+        rdl::delegate<rdl::RetT<RemoteT>, LocalT> to_remote_fn_;
+        rdl::delegate<rdl::RetT<LocalT>, RemoteT> to_local_fn_;
         long cached_max_seq_size_;
 
      public:
@@ -179,8 +179,8 @@ namespace rdlmm {
             brief_        = propInfo.brief(); // copy early for get/set before createAndLinkProp()
             extra_        = std::tie(args...);
             cached_max_seq_size_ = -1;  // trigger a get max size at the beginning
-            to_remote_fn_ = delegate<RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
-            to_local_fn_  = delegate<RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
+            to_remote_fn_ = rdl::delegate<rdl::RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
+            to_local_fn_  = rdl::delegate<rdl::RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
 
             if (propInfo.hasInitialValue()) {
                 LocalT v = propInfo.initialValue();
@@ -203,8 +203,8 @@ namespace rdlmm {
             //}
             //return checked;
         }
-        std::string meth_str(const char opcode) const {
-            std::string res(1, opcode);
+        sys::StringT meth_str(const char opcode) const {
+            sys::StringT res(1, opcode);
             res.append(brief_);
             return res;
         }
@@ -224,16 +224,16 @@ namespace rdlmm {
             if (isVolatile_) {
                 // NSET-GET pair
                 ret = client_->notify_tuple(meth_str('!').c_str(), withextras(remotev));
-                if (ret != ERROR_OK)
+                if (ret != DEVICE_OK)
                     return ret;
                 ret = client_->call_get_tuple<RemoteT>(meth_str('?').c_str(), remotev, extras());
-                if (ret != ERROR_OK)
+                if (ret != DEVICE_OK)
                     return ret;
                 cachedValue_ = to_local_fn_(remotev);
             } else {
                 // SET call
                 ret = client_->call_tuple(meth_str('!').c_str(), withextras(remotev));
-                if (ret != ERROR_OK)
+                if (ret != DEVICE_OK)
                     return ret;
                 cachedValue_ = localv;
             }
@@ -244,7 +244,7 @@ namespace rdlmm {
         virtual int get_impl(LocalT& localv) override {
             RemoteT remotev = 0;
             int ret         = client_->call_get_tuple<RemoteT, ExtrasT>(meth_str('?').c_str(), remotev, extra_);
-            if (ret != ERROR_OK)
+            if (ret != DEVICE_OK)
                 return ret;
             localv       = to_local_fn_(remotev);
             cachedValue_ = localv;
@@ -256,7 +256,7 @@ namespace rdlmm {
             if (isVolatile_)
                 return get_impl(localv);
             localv = cachedValue_;
-            return ERROR_OK;
+            return DEVICE_OK;
         }
 
         virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
@@ -296,7 +296,7 @@ namespace rdlmm {
                 }
             } else if (isSequencable_ && action == MM::AfterLoadSequence) {
                 // send the sequence to the device
-                std::vector<std::string> sequence = pprop->GetSequence();
+                std::vector<sys::StringT> sequence = pprop->GetSequence();
 
                 long seqsize    = static_cast<long>(sequence.size());
                 long remotesize = 0;
@@ -313,7 +313,7 @@ namespace rdlmm {
                     int size = i+1;
                     if (size % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || size == seqsize) {
                         // verify the current size
-                        if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != ERROR_OK) {
+                        if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != DEVICE_OK) {
                             return ret;
                         }
                         if (size != remotesize) {
@@ -439,7 +439,7 @@ namespace rdlmm {
     //    }
 
     //    /** Set a remote sequence. */
-    //    int setRemoteSequence(const std::vector<std::string> __sequence) {
+    //    int setRemoteSequence(const std::vector<sys::StringT> __sequence) {
     //        return setRemoteSequence_impl(__sequence);
     //    }
 
@@ -484,7 +484,7 @@ namespace rdlmm {
 		
 			Pseudo-code for the detection process
 			\code{.cpp}
-			tryStream(DEV* __target, std::string __stream, long __baudRate) 
+			tryStream(DEV* __target, sys::StringT __stream, long __baudRate) 
 			{
 				... // Call a series of methods that boil down to __target->setupStreamPort(__stream);
 				this->startProtocol(__target, __stream);
@@ -509,13 +509,13 @@ namespace rdlmm {
 			healthy slave device on this __stream.
 			@return @see MM::DeviceDetectionStatus
 		*/
-    MM::DeviceDetectionStatus tryStream(DEV* __target, std::string __stream, long __baudRate) {
+    MM::DeviceDetectionStatus tryStream(DEV* __target, sys::StringT __stream, long __baudRate) {
         BaseClass::StreamGuard(this);
         MM::DeviceDetectionStatus result = MM::Misconfigured;
         char defaultAnswerTimeout[MM::MaxStrLength];
         try {
             // convert stream name to lower case
-            std::string streamLowerCase = __stream;
+            sys::StringT streamLowerCase = __stream;
             std::transform(streamLowerCase.begin(), streamLowerCase.end(), streamLowerCase.begin(), ::tolower);
             if (0 < streamLowerCase.length() && 0 != streamLowerCase.compare("undefined") && 0 != streamLowerCase.compare("unknown")) {
                 const char* streamName = __stream.c_str();

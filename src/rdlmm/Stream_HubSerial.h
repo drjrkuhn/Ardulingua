@@ -1,8 +1,10 @@
 #pragma once
 
-#ifndef __STREAM_ADAPTER_H__
-    #define __STREAM_ADAPTER_H__
+#ifndef __STREAM_HUBSERIAL_H__
+    #define __STREAM_HUBSERIAL_H__
 
+    #include "../rdl/sys_StringT.h"
+    #include "../rdl/sys_StreamT.h"
     #include <cstddef> // for size_t
     #include <deque>
     #include <mutex>
@@ -38,10 +40,10 @@ namespace rdlmm {
      * @tparam HubT         MM HubDevice
      * @tparam StreamT      Arduino Stream base class to derive from.
      */
-    template <class HubT, class StreamT>
-    class HubStreamAdapter : public StreamT {
+    template <class HubT>
+    class Stream_HubSerial : public sys::StreamT {
      public:
-        HubStreamAdapter(HubT* hub) : hub_(hub) {}
+        Stream_HubSerial(HubT* hub) : hub_(hub) {}
 
         virtual size_t write(const uint8_t byte) override {
             std::lock_guard<std::mutex> _(guard_);
@@ -86,7 +88,7 @@ namespace rdlmm {
             return readBytes_impl(buffer, length);
         }
 
-        std::string readStdStringUntil(char terminator) {
+        sys::StringT readStdStringUntil(char terminator) {
             std::lock_guard<std::mutex> _(guard_);
             return readStdStringUntil_impl(terminator);
         }
@@ -161,7 +163,7 @@ namespace rdlmm {
         //        int err =
         //        CoreCallback::GetSerialAnswer(this,portName,2000,bufferA,term);
         //            which calls
-        //            std::string answer =
+        //            sys::StringT answer =
         //            MMCore::getSerialPortAnswer(portName,term);
         //                which checks that the term is not NULL and doesn't start
         //                with '\0' (NO NULL TERMINATORS) then creates another
@@ -170,7 +172,7 @@ namespace rdlmm {
         //                SerialInstance::GetAnswer(bufferB,1024,term);
         //                    which calls
         //                    GetImpl()->GetAnswer(bufferB, 1024, term);
-        //            MMCore then creates a std::string from the NULL term bufferB
+        //            MMCore then creates a sys::StringT from the NULL term bufferB
         //            (so NO zeros in the middle of the buffer) and passes that
         //            back to CoreCallback
         //        CoreCallback does a strcpy of the answer into bufferA
@@ -181,15 +183,15 @@ namespace rdlmm {
         //
         // So, `readStringUntil`, creates two additional buffers and one intermediate
         // string (with its own buffer)
-        std::string readStdStringUntil_impl(char terminator) {
-            std::string compose;
+        sys::StringT readStdStringUntil_impl(char terminator) {
+            sys::StringT compose;
             // deal with any character already in the read buffer
             int lastc;
             if (!rdbuf_.empty() && (lastc = read_impl()) >= 0) {
                 compose.append(1, (char)lastc);
                 if (lastc == terminator) return compose;
             }
-            std::string answerString;
+            sys::StringT answerString;
             const char termstr[]{terminator, '\0'};
             int err = hub_->GetSerialAnswer(hub_->port().c_str(), termstr, answerString);
             if (err == DEVICE_OK) {
@@ -207,7 +209,7 @@ namespace rdlmm {
         }
 
         size_t readBytesUntil_impl(char terminator, char* buffer, size_t length) {
-            std::string answer = readStdStringUntil_impl(terminator);
+            sys::StringT answer = readStdStringUntil_impl(terminator);
             size_t ngood       = std::min(answer.length(), length);
             std::strncpy(buffer, answer.c_str(), ngood);
             if (answer.length() > length) {
@@ -245,4 +247,4 @@ namespace rdlmm {
 
 } // namespace rdl
 
-#endif // __STREAM_ADAPTER_H__
+#endif // __STREAM_HUBSERIAL_H__

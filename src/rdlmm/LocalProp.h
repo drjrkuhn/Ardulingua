@@ -3,6 +3,7 @@
 #ifndef __LOCAL_PROP__
     #define __LOCAL_PROP__
 
+    #include "../rdl/sys_StringT.h"
     #include "DeviceProp.h"
 
 namespace rdlmm {

@@ -4,6 +4,8 @@
 #ifndef __DEVICEPROPHELPERS_H__
     #define __DEVICEPROPHELPERS_H__
 
+    #include "../rdl/sys_StringT.h"
+    
     #define NOMINMAX
     //#include "DeviceBase.h"
     //#include <MMDevice.h>
@@ -25,9 +27,9 @@ namespace rdlmm {
     template <typename T>
     struct is_mm_floating_point { static constexpr bool value = std::is_floating_point<T>::value; };
 
-    /** type test for reading or writing std::string */
+    /** type test for reading or writing sys::StringT */
     template <typename T>
-    struct is_mm_string { static constexpr bool value = std::is_base_of<std::string, T>::value; };
+    struct is_mm_string { static constexpr bool value = std::is_base_of<sys::StringT, T>::value; };
 
     /** type test for reading null terminated strings (const char*).
 	* @note we cannot use these for writing as we do not know the size of char* buffer.	*/
@@ -78,25 +80,25 @@ namespace rdlmm {
     * mm values from strings
     *******************************************************************/
     template <class T, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
-    inline typename T Parse(const std::string& str) {
+    inline typename T Parse(const sys::StringT& str) {
         std::stringstream parser(str);
         long temp = 0;
         parser >> temp;
         return static_cast<T>(temp);
     }
 
-    /** Parse a floating point value from a std::string */
+    /** Parse a floating point value from a sys::StringT */
     template <class T, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
-    inline typename T Parse(const std::string& str) {
+    inline typename T Parse(const sys::StringT& str) {
         std::stringstream parser(str);
         double temp = 0;
         parser >> temp;
         return static_cast<T>(temp);
     }
 
-    /** Parse a string from a std::string */
+    /** Parse a string from a sys::StringT */
     template <class T, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
-    inline typename T Parse(const std::string& str) {
+    inline typename T Parse(const sys::StringT& str) {
         return str;
     }
 
@@ -109,31 +111,31 @@ namespace rdlmm {
 
     /** convert mm integral to string */
     template <class T, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
-    inline std::string ToString(const T& value) {
+    inline sys::StringT ToString(const T& value) {
         return std::to_string(static_cast<long>(value));
     }
 
     /** convert mm floating point to string */
     template <typename T, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
-    inline std::string ToString(const T& value) {
+    inline sys::StringT ToString(const T& value) {
         return std::to_string(static_cast<double>(value));
     }
 
     /** convert mm string to string (included for auto-marshalling). */
     template <typename T, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
-    inline std::string ToString(const T& value) {
+    inline sys::StringT ToString(const T& value) {
         return value;
     }
 
-    /** convert const char* to std::string */
+    /** convert const char* to sys::StringT */
     template <typename T, typename std::enable_if<is_mm_c_str<T>::value, bool>::type = true>
-    inline std::string ToString(const T value) {
-        return std::string(value);
+    inline sys::StringT ToString(const T value) {
+        return sys::StringT(value);
     }
 
-    /**  convert MM::PropertyType to std::string */
+    /**  convert MM::PropertyType to sys::StringT */
     //template <typename T, typename std::enable_if<std::is_same<T, MM::PropertyType>::value, bool>::type = true>
-    inline std::string ToString(const MM::PropertyType& value) {
+    inline sys::StringT ToString(const MM::PropertyType& value) {
     #define __MAP_ENTRY(type) \
         { type, #type } // stringize macro
         static std::map<MM::PropertyType, const char*> types = {
@@ -142,9 +144,9 @@ namespace rdlmm {
         return types[value];
     }
 
-    /** convert MM::Property value to std::string */
-    inline std::string ToString(const MM::Property& prop) {
-        std::string val;
+    /** convert MM::Property value to sys::StringT */
+    inline sys::StringT ToString(const MM::Property& prop) {
+        sys::StringT val;
         prop.Get(val);
         return val;
     }

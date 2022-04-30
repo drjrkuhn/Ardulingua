@@ -132,7 +132,6 @@ namespace rdl {
      * @endcode
      *
      * @tparam T        property value type
-     * @tparam StringT     strings used by the server (std::string or arudino::String)
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
     template <typename T, long MAX_SEQ_SIZE, bool READONLY=false>
