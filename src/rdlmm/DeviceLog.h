@@ -23,20 +23,20 @@ namespace rdlmm {
                 send_to_log();
                 return 1;
             }
-            size_t w = stream_.tellp();
-            stream_.put(c);
-            w = static_cast<size_t>(stream_.tellp()) - w;
+            size_t w = ss_.tellp();
+            ss_.put(c);
+            w = static_cast<size_t>(ss_.tellp()) - w;
             return w;
         }
         virtual size_t write(const uint8_t* ucbuf, size_t size) override {
             const char* buf = reinterpret_cast<const char*>(ucbuf);
-            if (strncmp(buf, "\r\n", 2)) {
+            if (strncmp(buf, "\r\n", 2) == 0 /*match*/) {
                 send_to_log();
                 return 2;
             }
-            size_t w = stream_.tellp();
-            stream_.write(buf, size);
-            w = static_cast<size_t>(stream_.tellp()) - w;
+            size_t w = ss_.tellp();
+            ss_.write(buf, size);
+            w = static_cast<size_t>(ss_.tellp()) - w;
             return w;
         }
         virtual int availableForWrite() override { return INT_MAX; }
@@ -55,30 +55,16 @@ namespace rdlmm {
             }
         };
  
-        //std::string ltrim(const std::string& s) {
-        //    size_t start = s.find_first_not_of(WHITESPACE);
-        //    return (start == std::string::npos) ? "" : s.substr(start);
-        //}
-
-        //std::string rtrim(const std::string& s) {
-        //    size_t end = s.find_last_not_of(WHITESPACE);
-        //    return (end == std::string::npos) ? "" : s.substr(0, end + 1);
-        //}
-
         void clear() {
-            // clear _ss by swapping with a new one
-            std::stringstream temp;
-            temp.copyfmt(stream_);
-            stream_.swap(temp);
-            stream_.clear();
-            stream_.copyfmt(temp);
-            std::swap(stream_, temp);
+            // clear the stringstream buffer
+            ss_.str("");
+            assert(ss_.str().length() == 0);
         }
 
         void send_to_log() {
             const static std::string WHITESPACE = " \n\r\t\f\v";
             if (device_) {
-                sys::StringT sstr = stream_.str();
+                sys::StringT sstr = ss_.str();
                 if (sstr.length() == 0)
                     return;
                 // left trim
@@ -90,7 +76,7 @@ namespace rdlmm {
                     clear();
                     return;
                 }
-                sstr = sstr.substr(start, end);
+                sstr = sstr.substr(start, end+1);
                 if (sstr.length() == 0) {
                     clear();
                     return;
@@ -101,7 +87,7 @@ namespace rdlmm {
         }
 
         DeviceT* device_;
-        std::stringstream stream_;
+        std::stringstream ss_;
         bool debug_only_;
     };
 

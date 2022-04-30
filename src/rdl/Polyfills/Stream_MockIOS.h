@@ -187,13 +187,8 @@ namespace sys {
             if (p < 0)
                 p = _ss.str().length();
             if (g > 0 && g == p) {
-                // clear _ss by swapping with a new one
-                std::stringstream temp;
-                temp.copyfmt(_ss);
-                _ss.swap(temp);
-                _ss.clear();
-                _ss.copyfmt(temp);
-                std::swap(_ios, _ss);
+                // clear _ss
+                _ss.str("");
             }
         }
     #endif
