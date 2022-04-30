@@ -4,6 +4,8 @@
     #define __JSONDISPATCH_H__
 
     #include "sys_StringT.h"
+    #include "sys_PrintT.h"
+    #include "sys_StreamT.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
     #include "std_utility.h"
@@ -181,15 +183,15 @@ namespace rdl {
         protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size,
                       unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
                       unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size) {
+            : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size), logger_(Null_Print()) {
             timeout_ms_     = timeout_ms;
             retry_delay_ms_ = retry_delay_ms;
         }
 
-        logger_base& logger() { return logger_; }
+        sys::PrintT& logger() { return logger_; }
         
-        logger_base& logger(logger_base& log) {
-            logger_ = log;
+        sys::PrintT& logger(sys::PrintT& logger) {
+            logger_ = logger;
             return logger_;
         }
 
@@ -223,7 +225,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            DCS_BLK(logger_.print(SERVER_COL "\tserialized"); logger_.println(msgdoc));
+            DCS_BLK(logger_.print(SERVER_COL "\tserialized"); println(logger_, msgdoc));
             msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -242,7 +244,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
-            DCS_BLK(logger_.print(SERVER_COL "\tserialized"); logger_.println(msgdoc));
+            DCS_BLK(logger_.print(SERVER_COL "\tserialized"); println(logger_, msgdoc));
             msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -250,7 +252,7 @@ namespace rdl {
         }
 
         // SERVER_METHOD
-        int deserialize_call(JsonDocument& msgdoc, size_t msgsize, StringT& method, int& id, JsonArray& args) {
+        int deserialize_call(JsonDocument& msgdoc, size_t msgsize, sys::StringT& method, int& id, JsonArray& args) {
             // slip decode the message
             msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
@@ -259,10 +261,10 @@ namespace rdl {
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            DCS_BLK(logger_.print(SERVER_COL "\tdeserialized"); logger_.println(msgdoc));
+            DCS_BLK(logger_.print(SERVER_COL "\tdeserialized"); println(logger_, msgdoc));
             if (!msgdoc.containsKey(RK_METHOD))
                 return ERROR_JSON_INVALID_REQUEST;
-            method = msgdoc[RK_METHOD].as<StringT>();
+            method = msgdoc[RK_METHOD].as<sys::StringT>();
             if (!msgdoc.containsKey(RK_PARAMS))
                 return ERROR_JSON_INVALID_REQUEST;
             args = msgdoc[RK_PARAMS];
@@ -273,7 +275,7 @@ namespace rdl {
 
         // CLIENT METHOD
         template <typename... PARAMS>
-        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, StringT method, const int id, PARAMS... args) {
+        int serialize_call(JsonDocument& msgdoc, size_t& msgsize, sys::StringT method, const int id, PARAMS... args) {
             // serialize the message
             msgdoc[RK_METHOD] = method;
             JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
@@ -286,7 +288,7 @@ namespace rdl {
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
                 return ERROR_JSON_ENCODING_ERROR;
-            DCS_BLK(logger_.print("\tserialized "); logger_.println(msgdoc));
+            DCS_BLK(logger_.print("\tserialized "); println(logger_, msgdoc));
             msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
@@ -303,7 +305,7 @@ namespace rdl {
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
-            DCS_BLK(logger_.print("\tdeserialized"); logger_.println(msgdoc));
+            DCS_BLK(logger_.print("\tdeserialized"); println(logger_, msgdoc));
             JsonVariant jvid = msgdoc[RK_ID];
             // check for reply id
             if (jvid.isNull())
@@ -345,8 +347,7 @@ namespace rdl {
         svc::buffer buffer_;
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
-        logger_base EMPTY_LOGGER;
-        logger_base& logger_ = EMPTY_LOGGER;
+        sys::PrintT& logger_;
     };
 
     /************************************************************************
@@ -379,7 +380,7 @@ namespace rdl {
             JsonArray args = msg.as<JsonArray>(); // dummy initializion
             StaticJsonDocument<svc::JRESULT_SIZE> resultdoc;
             JsonVariant result = resultdoc.as<JsonVariant>();
-            StringT method;
+            sys::StringT method;
             auto mapit = dispatch_map_.end();
             int id = -1, err = ERROR_OK;
             for (;;) { // "try" clause. Always use break to exit
@@ -397,12 +398,12 @@ namespace rdl {
                         logger_.println(err);
                     } else {
                         logger_.print(" -> ");
-                        logger_.println(result.as<StringT>());
+                        logger_.println(result.as<sys::StringT>());
                     });
                 break;
             }
             if (id >= 0) { // server wants reply
-                sys_yield();
+                sys::yield();
                 msg.clear();
                 if (mapit != dispatch_map_.end() && !mapit->second.returns_void()) {
                     err = BaseT::serialize_reply(msg, msgsize, id, result, err);
@@ -447,7 +448,7 @@ namespace rdl {
 
         template <typename... PARAMS>
         int call(const char* method, PARAMS... args) {
-            unsigned long starttime = sys_millis();
+            unsigned long starttime = sys::millis();
             unsigned long endtime   = starttime + timeout_ms_;
             unsigned long time;
             int last_err = ERROR_OK;
@@ -455,13 +456,13 @@ namespace rdl {
             long msg_id = nextid_++;
             last_err    = call_impl<PARAMS...>(method, msg_id, args...);
             int attempt = 0;
-            while ((time = sys_millis()) < endtime) {
+            while ((time = sys::millis()) < endtime) {
                 attempt++;
                 // give some time for the reply
                 if (retry_delay_ms_ > 0) {
-                    sys_delay(retry_delay_ms_);
+                    sys::delay(retry_delay_ms_);
                 } else {
-                    sys_yield();
+                    sys::yield();
                 }
                 DCS_BLK(logger_.print("CLIENT call read_reply attempt "); logger_.println(attempt));
                 // get reply
@@ -479,7 +480,7 @@ namespace rdl {
                     continue; // try again
                 }
                 DCS_BLK(logger_.print("CLIENT call success"));
-                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
 
                 // all good
                 return ERROR_OK;
@@ -495,7 +496,7 @@ namespace rdl {
 
         template <typename RTYPE, typename... PARAMS>
         int call_get(const char* method, RTYPE& ret, PARAMS... args) {
-            unsigned long starttime = sys_millis();
+            unsigned long starttime = sys::millis();
             unsigned long endtime   = starttime + timeout_ms_;
             unsigned long time;
             int last_err = ERROR_OK;
@@ -503,13 +504,13 @@ namespace rdl {
             long msg_id = nextid_++;
             last_err    = call_impl<PARAMS...>(method, msg_id, args...);
             int attempt = 0;
-            while ((time = sys_millis()) < endtime) {
+            while ((time = sys::millis()) < endtime) {
                 attempt++;
                 // give some time for the reply
                 if (retry_delay_ms_ > 0) {
-                    sys_delay(retry_delay_ms_);
+                    sys::delay(retry_delay_ms_);
                 } else {
-                    sys_yield();
+                    sys::yield();
                 }
                 DCS_BLK(logger_.print("CLIENT call read_reply attempt "); logger_.println(attempt));
                 // get reply
@@ -527,7 +528,7 @@ namespace rdl {
                     continue; // try again
                 }
                 DCS_BLK(logger_.print("CLIENT call_get success"));
-                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
                 // all good
                 return ERROR_OK;
             }
@@ -584,28 +585,28 @@ namespace rdl {
 
     #if 0
         int read_reply(size_t& msgsize) {
-            unsigned long starttime = sys_millis();
+            unsigned long starttime = sys::millis();
             unsigned long endtime = starttime + timeout_ms_;
             unsigned long time;
             msgsize        = 0;
-            while ((time = sys_millis()) < endtime) {
+            while ((time = sys::millis()) < endtime) {
                 if (istream_.available() > 0) {
                     msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
                     DCS_BLK(logger_.print("CLIENT << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
                     if (msgsize > 0) {
                         DCS_BLK(logger_.print("CLIENT read_reply found"));
-                        DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+                        DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
                         return ERROR_OK;
                     }
                 }
                 if (retry_delay_ms_ > 0) {
-                    sys_delay(retry_delay_ms_);
+                    sys::delay(retry_delay_ms_);
                 } else {
-                    sys_yield();
+                    sys::yield();
                 }
             }
             DCS_BLK(logger_.print("CLIENT read_reply TIMEOUT"));
-            DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+            DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
             return ERROR_JSON_TIMEOUT;
         }
     #else
@@ -614,17 +615,17 @@ namespace rdl {
                 // Let the caller deal with timeouts
                 return ERROR_JSON_NO_REPLY;
             }
-            DCS(unsigned long starttime = sys_millis());
+            DCS(unsigned long starttime = sys::millis());
 
             msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
             DCS_BLK(logger_.print("CLIENT << "); logger_.print_escaped(buffer_.data(), msgsize, "'"); logger_.println());
             if (msgsize > 0) {
                 DCS_BLK(logger_.print("CLIENT read_reply found"));
-                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+                DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
                 return ERROR_OK;
             }
             DCS_BLK(logger_.print("CLIENT read_reply INVALID REPLY"));
-            DCS_BLK(logger_.print("\ttime ("); logger_.print(sys_millis() - starttime); logger_.println(" ms)"));
+            DCS_BLK(logger_.print("\ttime ("); logger_.print(sys::millis() - starttime); logger_.println(" ms)"));
             return ERROR_JSON_INVALID_REPLY;
         }
 

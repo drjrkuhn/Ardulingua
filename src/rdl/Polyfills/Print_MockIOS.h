@@ -26,14 +26,16 @@
 
 namespace sys {
 
-    /**
-     * Adapts a OSTREAM for printing.
-     *
+    /************************************************************************
+     * Stream adapter for std::ostream
+     * 
      * This version overrides both the single-byte 'write' and the
      * multi-byte 'write' functions of Print to write to the OSTREAM.
-     */
+     * 
+     * @tparam OSTREAM     type of stream to adapt
+     ************************************************************************/
     template <class OSTREAM>
-    class Print_ostream : public Print {
+    class Print_ostream : public sys::Print {
      public:
         Print_ostream(OSTREAM& os) : _ostream(os) {}
         OSTREAM& ostream() { return _ostream; }
@@ -67,13 +69,14 @@ namespace sys {
         mutable std::mutex _guard;
     };
 
-    /**
-     * Adapts a std::ostringstream for printing to strings.
-     *
+    /************************************************************************
+     * Stream adapter for std::ostringstream
+     * 
      * This version keeps an internal stringstream/stringbuf
      * as its stream. Access the current contents with @see str().
      * Clear the buffer with @see clear().
-     */
+     ************************************************************************/
+
     class Print_StringT : public Print_ostream<std::ostringstream>, public Printable {
      public:
         Print_StringT(const sys::StringT str)

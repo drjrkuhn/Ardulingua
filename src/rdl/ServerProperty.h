@@ -29,7 +29,7 @@ namespace rdl {
         /** Absolute base class type, used for virtual dispatch */
         using RootT = prop_any_base<T, ExT...>;
 
-        prop_any_base(const StringT& brief_name) : brief_(brief_name) {}
+        prop_any_base(const sys::StringT& brief_name) : brief_(brief_name) {}
         prop_any_base(prop_any_base& other) = default;
 
         bool operator==(const prop_any_base& other) const { return brief_ == other.brief_; }
@@ -60,10 +60,10 @@ namespace rdl {
         virtual bool sequencable(ExT... ex) const  = 0;
         virtual bool read_only(ExT... ex) const    = 0;
 
-        StringT message(const char opcode) { return opcode + brief_; }
+        sys::StringT message(const char opcode) { return opcode + brief_; }
 
      protected:
-        StringT brief_;
+        sys::StringT brief_;
     };
 
     /**
@@ -143,7 +143,7 @@ namespace rdl {
         using ThisT = simple_prop_base<T, MAX_SEQ_SIZE, READONLY>;
         using typename BaseT::RootT; // used for dispatch map creation
 
-        simple_prop_base(const StringT& brief_name, const T initial, bool sequencable = false)
+        simple_prop_base(const sys::StringT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
               value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE), 
               next_index_(0), size_(0), started_(false) {
@@ -190,7 +190,6 @@ namespace rdl {
         }
 
      protected:
-        StringT brief_;
         T value_;
         bool sequencable_;
         const long max_size_;
@@ -221,10 +220,10 @@ namespace rdl {
         using ChanT = prop_any_base<T>; // MAX_SEQ_SIZE doesn't matter for the reference
         using typename BaseT::RootT; // used for dispatch map creation
 
-        channel_prop_base(const StringT& brief_name)
+        channel_prop_base(const sys::StringT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
         }
-        channel_prop_base(const StringT& brief_name, ChanT* props[], int nchan)
+        channel_prop_base(const sys::StringT& brief_name, ChanT* props[], int nchan)
             : BaseT(brief_name), num_channels_(0) {
                 add(props, nchan);
         }

@@ -1,31 +1,30 @@
 #include <rdl/sys_StringT.h>
+#include <rdl/sys_StreamT.h>
 #include <rdl/ServerProperty.h>
 #include <rdl/JsonDelegate.h>
 #include <rdl/JsonDispatch.h>
 #include <rdl/Logger.h>
-#include <rdl/Polyfills/sys_timing.h>
+#include <rdl/sys_timing.h>
 #include <unordered_map>
-#include <WString.h>
-#include <Print.h>
-#include <Print_std.h>
-#include <Stream.h>
-#include <Stream_std.h>
+// #include <WString.h>
+// #include <Print.h>
+// #include <Print_std.h>
+// #include <Stream.h>
+// #include <Stream_std.h>
 #include <thread>
 #include <future>
+#include <iostream>
 
 
-#include <string>
-#include <sstream>
+// #include <string>
+// #include <sstream>
 
 using namespace rdl;
-using namespace arduino;
 
-Print_ostream<std::ostream> cout_Print(std::cout);
-using LoggerT = logger_base<Print>;
-LoggerT clientlogger(&cout_Print);
-LoggerT serverlogger(&cout_Print);
+sys::Print_ostream<std::ostream> clientlogger(std::cout);
+sys::Print_ostream<std::ostream> serverlogger(std::cout);
 
-using MapT = std::unordered_map<StringT, json_stub, string_hash>;
+using MapT = std::unordered_map<sys::StringT, json_stub, sys::string_hash>;
 
 MapT dispatch_map;
 
@@ -46,15 +45,14 @@ template <typename T>
 struct TYPEDEBUG;
 
 
-std::stringstream ss_toserver;
-std::stringstream ss_fromserver;
-using StreamT = Stream_iostream<std::stringstream>;
+// std::stringstream ss_toserver;
+// std::stringstream ss_fromserver;
 
-StreamT toserver(ss_toserver);
-StreamT fromserver(ss_fromserver);
+sys::Stream_StringT toserver;
+sys::Stream_StringT fromserver;
 
-using ServerT = json_server<StreamT, StreamT, MapT, 512>;
-using ClientT = json_client<StreamT, StreamT, 512>;
+using ServerT = json_server<sys::Stream_StringT, sys::Stream_StringT, MapT, 512>;
+using ClientT = json_client<sys::Stream_StringT, sys::Stream_StringT, 512>;
 
 ////////// SERVER CODE /////////////
 
@@ -92,7 +90,7 @@ void server_thread_fn (std::future<void> stopFuture) {
         if (ret != ERROR_OK) {
             std::cerr << "SERVER ERROR: " << ret << std::endl;
         }
-        sys_yield();
+        sys::yield();
     }
     std::cout << SERVER_COL "SERVER Thread End" << std::endl;
 }
@@ -101,7 +99,7 @@ int start_server() {
     std::cout << "CLIENT start server" << std::endl;
     std::future<void> stopFuture = exitSignal.get_future();
     server_thread = std::thread(&server_thread_fn, std::move(stopFuture));
-    sys_delay(20);
+    sys::delay(20);
     return 0;
 }
 
@@ -157,7 +155,7 @@ int main() {
     }
 
 
-    delay(500);
+    sys::delay(500);
     stop_server();
 
     return 0;

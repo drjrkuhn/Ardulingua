@@ -3,13 +3,11 @@
 #ifndef __LOGGER_H__
     #define __LOGGER_H__
 
+    #include "sys_PrintT.h"
     #include "sys_StringT.h"
-    #include <ArduinoJson.h>
-
-class Printable;
-
     #include <iomanip>
     #include <sstream>
+    #include <ArduinoJson.h>
 
 namespace rdl {
 
@@ -17,211 +15,104 @@ namespace rdl {
         #define DEC 10
     #endif
 
-    class NULL_Printer  {
+    class Null_Print : public sys::PrintT {
      public:
-        inline size_t write(const unsigned char*, size_t) { return 0; }
-        inline size_t write(const char*) { return 0; }
-        inline size_t write(uint8_t) { return 0; }
-        inline size_t print(const StringT&) { return 0; }
-        inline size_t print(const char[]) { return 0; }
-        inline size_t print(char) { return 0; }
-        inline size_t print(unsigned char, int = DEC) { return 0; }
-        inline size_t print(short, int = DEC) { return 0; }
-        inline size_t print(unsigned short, int = DEC) { return 0; }
-        inline size_t print(int, int = DEC) { return 0; }
-        inline size_t print(unsigned int, int = DEC) { return 0; }
-        inline size_t print(long, int = DEC) { return 0; }
-        inline size_t print(unsigned long, int = DEC) { return 0; }
-        inline size_t print(long long, int = DEC) { return 0; }
-        inline size_t print(unsigned long long, int = DEC) { return 0; }
-        inline size_t print(float, int = 2) { return 0; }
-        inline size_t print(double, int = 2) { return 0; }
-        inline size_t print(const Printable&) { return 0; }
-
-        inline size_t println(const StringT&) { return 0; }
-        inline size_t println(const char[]) { return 0; }
-        inline size_t println(char) { return 0; }
-        inline size_t println(unsigned char, int = DEC) { return 0; }
-        inline size_t println(short, int = DEC) { return 0; }
-        inline size_t println(unsigned short, int = DEC) { return 0; }
-        inline size_t println(int, int = DEC) { return 0; }
-        inline size_t println(unsigned int, int = DEC) { return 0; }
-        inline size_t println(long, int = DEC) { return 0; }
-        inline size_t println(unsigned long, int = DEC) { return 0; }
-        inline size_t println(long long, int = DEC) { return 0; }
-        inline size_t println(unsigned long long, int = DEC) { return 0; }
-        inline size_t println(float, int = 2) { return 0; }
-        inline size_t println(double, int = 2) { return 0; }
-        inline size_t println(const Printable&) { return 0; }
-        inline size_t println(void) { return 0; }
+        virtual size_t write(const uint8_t) override { return 0; }
+        virtual size_t write(const uint8_t*, size_t) override { return 0; }
+        virtual int availableForWrite() override { return 0; }
+        virtual void flush() override {}
     };
 
     template <class DeviceT>
-    class DeviceLog_Printer {
+    class DeviceLog_Print : public sys::PrintT {
      public:
-        DeviceLog_Printer() : device_(nullptr), debug_only_(debug_only) {}
-        DeviceLog_Printer(DeviceT* device, bool debug_only) : device_(device), debug_only_(debug_only) {}
+        DeviceLog_Print() : device_(nullptr), debug_only_(true) {}
+        DeviceLog_Print(DeviceT* device, bool debug_only) : device_(device), debug_only_(debug_only) {}
 
-        inline size_t write(const unsigned char* buf, size_t size) {
-            size_t s = stream_.tellp();
-            stream_.write(reinterpret_cast<const char*>(buf), size);
-            return stream_.tellp() - s;
+        virtual size_t write(const uint8_t uc) override {
+            char c = static_cast<char>(c);
+            if (c == '\n') {
+                send_to_log(1);
+                return 1;
+            }
+            size_t w = stream_.tellp();
+            stream_.put(c);
+            w = stream_.tellp() - w;
+            return w;
         }
-        inline size_t write(const char* c_str) {
-            size_t s = stream_.tellp();
-            stream_ << c_str;
-            return stream_.tellp() - s;
+        virtual size_t write(const uint8_t* ucbuf, size_t size) override {
+            const char* buf = reinterpret_cast<const char*>(ucbuf);
+            if (strncmp(buf, "\r\n", 2)) {
+                send_to_log(2);
+                return 2;
+            }
+            size_t w = stream_.tellp();
+            stream_.write(buf, size);
+            w = stream_.tellp() - w;
+            return w;
         }
-        inline size_t write(uint8_t c) {
-            size_t s = stream_.tellp();
-            stream_ << c;
-            return stream_.tellp() - s;
-        }
-        inline size_t print(const StringT& s) { return write(s); }
-        inline size_t print(const char s[]) { return write(s); }
-        inline size_t print(char) { return write(c); }
-        inline size_t print(unsigned char n, int base = DEC) { return print_unsigned(n, base); }
-        inline size_t print(short n, int base = DEC) { return print_signed(n, base); }
-        inline size_t print(unsigned short n, int base = DEC) { return print_unsigned(n, base); }
-        inline size_t print(int n, int base = DEC) { return print_signed(n, base); }
-        inline size_t print(unsigned int n, int base = DEC) { return print_unsigned(n, base); }
-        inline size_t print(long n, int base = DEC) { return print_signed(n, base); }
-        inline size_t print(unsigned long n, int base = DEC) { return print_unsigned(n, base); }
-        inline size_t print(long long n, int base = DEC) { return print_signed(n, base); }
-        inline size_t print(unsigned long long n, int base = DEC) { return print_unsigned(n, base); }
-        inline size_t print(float n, int prec = 2) { return print(static_cast<double>(n), prec); }
-        inline size_t print(double n, int prec = 2) {
-            size_t s = stream_.tellp();
-            stream_ << std::setprecision(prec) << std::fixed << n;
-            return stream_.tellp() - s;
-        }
-        inline size_t print(const Printable& x) { return x.printTo(*this); }
+        virtual int availableForWrite() override { return SIZE_MAX; }
+        virtual void flush() override {}
 
-        inline size_t println(const StringT& s) { return print(s) + println(); }
-        inline size_t println(const char s[]) { return print(s) + println(); }
-        inline size_t println(char c) { return print(c) + println(); }
-        inline size_t println(unsigned char n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(short n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(unsigned short n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(int n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(unsigned int n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(long n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(unsigned long n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(long long n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(unsigned long long n, int b = DEC) { return print(n, b) + println(); }
-        inline size_t println(float n, int p = 2) { return print(n, p) + println(); }
-        inline size_t println(double n, int p = 2) { return print(n, p) + println(); }
-        inline size_t println(const Printable& x) { return print(x) + println(); }
-
-        inline size_t println(void) {
-            // only send on println;
-            if (device_)
-                device_->LogMessage(stream_.str(), debug_only_);
+     protected:
+        void send_to_log(int endsize) {
+            if (device_) {
+                sys::StringT str = stream_.str();
+                size_t len  = str.length();
+                device_->LogMessage(str, len - endsize, debug_only_);
+            }
             stream_.str("");
         }
 
-     protected:
-        inline size_t print_unsigned(unsigned long long n, int base = DEC) {
-            size_t s = stream_.tellp();
-            stream_ << std::setbase(base) << n;
-            return stream_.tellp() - s;
-        }
-        inline size_t print_signed(long long n, int base = DEC) {
-            size_t s = stream_.tellp();
-            stream_ << std::setbase(base) << n;
-            return stream_.tellp() - s;
-        }
         DeviceT* device_;
         std::ostringstream stream_;
         bool debug_only_;
     };
 
-    template <class Print>
-    class logger_base {
-     public:
-        logger_base() : printer_(nullptr) {}
-        logger_base(Print* printer) : printer_(printer) {}
+    size_t print(sys::PrintT& printer, JsonDocument& doc) {
+        return printer.print("JSON:") + ArduinoJson::serializeJson(doc, printer);
+    }
+    size_t println(sys::PrintT& printer, JsonDocument& doc) {
+        return print(printer, doc) + printer.println();
+    }
 
-        Print& printer() { return *printer_; }
-
-        template <typename T>
-        size_t print(T t) {
-            return printer_ ? printer_->print(t) : 0;
-        }
-        template <typename T>
-        size_t print(T t, int base) {
-            return printer_ ? printer_->print(t, base) : 0;
-        }
-        size_t print(const char* buf, size_t size) {
-            return printer_ ? printer_->write(buf, size) : 0;
-        }
-        size_t print(JsonDocument& doc) {
-            if (!printer_) return 0;
-            return printer_->print("JSON:") + ArduinoJson::serializeJson(doc, *printer_);
-        }
-
-        template <typename T>
-        size_t println(T t) {
-            return printer_ ? printer_->println(t) : 0;
-        }
-        template <typename T>
-        size_t println(T t, int base) {
-            return printer_ ? printer_->println(t, base) : 0;
-        }
-        size_t println() {
-            return printer_ ? printer_->println() : 0;
-        }
-        size_t println(const char* buf, size_t size) {
-            if (!printer_) return 0;
-            return printer_->write(buf, size) + printer_->println();
-        }
-        size_t println(JsonDocument& doc) {
-            if (!printer_) return 0;
-            return printer_->print("JSON:") + ArduinoJson::serializeJson(doc, *printer_) + printer_->println();
-        }
-
-        inline size_t print_escaped(const char* buf, size_t size, const char* brackets = "\"") {
-            if (!printer_) return 0;
-            size_t written = 0;
-            size_t br_len  = brackets ? strlen(brackets) : 0;
-            if (br_len > 0)
-                written += printer_->print(brackets[0]);
-            static char c_escapes[] = {
-                '\0', '0', '\'', '\'', '\"', '"', '\?', '?', '\\', '\\', '\a', 'a',
-                '\b', 'b', '\f', 'f', '\n', 'n', '\r', 'r', '\t', 't', '\v', 'v'};
-            const char* buf_end = buf + size;
-            for (; buf != buf_end; buf++) {
-                unsigned char uc = static_cast<unsigned char>(buf[0]);
-                size_t c_esc;
-                for (c_esc = 0; c_esc < sizeof(c_escapes); c_esc += 2) {
-                    if (uc == c_escapes[c_esc])
-                        break;
-                }
-                if (c_esc < sizeof(c_escapes)) {
-                    char sc = c_escapes[c_esc + 1];
-                    written += printer_->print('\\') + printer_->print(sc);
-                } else if (isprint(uc)) {
-                    written += printer_->print(buf[0]);
-                } else {
-                    written += printer_->print("\\x") + printer_->print(uc, 16);
-                }
+    inline size_t print_escaped(sys::PrintT& printer, const char* buf, size_t size, const char* brackets = "\"") {
+        size_t written = 0;
+        size_t br_len  = brackets ? strlen(brackets) : 0;
+        if (br_len > 0)
+            written += printer.print(brackets[0]);
+        static char c_escapes[] = {
+            '\0', '0', '\'', '\'', '\"', '"', '\?', '?', '\\', '\\', '\a', 'a',
+            '\b', 'b', '\f', 'f', '\n', 'n', '\r', 'r', '\t', 't', '\v', 'v'};
+        const char* buf_end = buf + size;
+        for (; buf != buf_end; buf++) {
+            unsigned char uc = static_cast<unsigned char>(buf[0]);
+            size_t c_esc;
+            for (c_esc = 0; c_esc < sizeof(c_escapes); c_esc += 2) {
+                if (uc == c_escapes[c_esc])
+                    break;
             }
-            if (br_len > 0) {
-                if (br_len > 1)
-                    written += printer_->print(brackets[1]);
-                else
-                    written += printer_->print(brackets[0]);
+            if (c_esc < sizeof(c_escapes)) {
+                char sc = c_escapes[c_esc + 1];
+                written += printer.print('\\') + printer.print(sc);
+            } else if (isprint(uc)) {
+                written += printer.print(buf[0]);
+            } else {
+                written += printer.print("\\x") + printer.print(uc, 16);
             }
-            return written;
         }
-
-        inline size_t print_escaped(const unsigned char* buf, size_t size, const char* brackets = "\"") {
-            return print_escaped(reinterpret_cast<const char*>(buf), size, brackets);
+        if (br_len > 0) {
+            if (br_len > 1)
+                written += printer.print(brackets[1]);
+            else
+                written += printer.print(brackets[0]);
         }
+        return written;
+    }
 
-     protected:
-        Print* printer_;
-    };
+    inline size_t print_escaped(sys::PrintT& printer, const unsigned char* buf, size_t size, const char* brackets = "\"") {
+        return print_escaped(printer, reinterpret_cast<const char*>(buf), size, brackets);
+    }
 
 }; // namespace rdl
 

@@ -83,7 +83,7 @@ namespace sys {
         }
 
         size_t print(const sys::StringT& s) { return write(s.c_str(), s.length()); }
-        size_t print(const rdl::__FlashStringHelper* ifsh) { return print(reinterpret_cast<const char*>(ifsh)); }
+        size_t print(const __FlashStringHelper* ifsh) { return print(reinterpret_cast<const char*>(ifsh)); }
         size_t print(const char str[]) { return write(str); }
         size_t print(char c) { return write(c); }
         size_t print(unsigned char n, int base = DEC) {

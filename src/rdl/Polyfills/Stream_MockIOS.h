@@ -15,7 +15,7 @@
         #define STRINGSTREAM_KEEP_SMALL 1
     #endif
 
-namespace std {
+namespace sys {
 
     /*
      * ## Rules-of-thumb for mutex locking
@@ -30,6 +30,11 @@ namespace std {
      *    - public methods call private/protected unlocked _impl methods
      */
 
+    /************************************************************************
+     * Stream adapter for std::iostream
+     * 
+     * @tparam IOSTREAM     type of stream to adapt
+     ************************************************************************/
     template <class IOSTREAM>
     class Stream_iostream : public sys::Stream {
      public:
@@ -112,6 +117,12 @@ namespace std {
         mutable std::mutex _guard;
     };
 
+    /************************************************************************
+     * Stream adapter for for std::stringstream
+     * 
+     * Access the current contents with @see str().
+     * Clear the buffer with @see clear().
+     ************************************************************************/
     class Stream_StringT : public Stream_iostream<std::stringstream> {
      public:
         Stream_StringT(
@@ -166,7 +177,7 @@ namespace std {
 
      protected:
 
-    #if STRINGSTREAM_KEEP_SMALL 1
+    #if (STRINGSTREAM_KEEP_SMALL != 0)
         /** Check put and get pointers. If they are equal, clear the string for more IO. */
         virtual void update_buf() override {
             // force update of pointers
