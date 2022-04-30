@@ -61,7 +61,7 @@ using ClientT = json_client<sys::Stream_StringT, sys::Stream_StringT, 512>;
 ServerT server(toserver, fromserver, dispatch_map);
 
 int setup_server() {
-    server.logger(serverlogger);
+    server.logger(&serverlogger);
 
 #if 1
     // add as list
@@ -122,7 +122,7 @@ int main() {
 
     setup_server();
     start_server();
-    client.logger(clientlogger);
+    client.logger(&clientlogger);
 
     int fooval;
     client.call_get("?foo", fooval);

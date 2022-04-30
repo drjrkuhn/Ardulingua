@@ -70,7 +70,9 @@ namespace rdl {
     };
 
     size_t print(sys::PrintT& printer, JsonDocument& doc) {
-        return printer.print("JSON:") + ArduinoJson::serializeJson(doc, printer);
+        sys::StringT strdoc;
+        ArduinoJson::serializeJson(doc, strdoc);
+        return printer.print("JSON:") + printer.print(strdoc);
     }
     size_t println(sys::PrintT& printer, JsonDocument& doc) {
         return print(printer, doc) + printer.println();
