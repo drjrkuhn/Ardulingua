@@ -3,7 +3,7 @@
 #ifndef __SERVERPROPERTY_H__
     #define __SERVERPROPERTY_H__
 
-    #include "StringT.h"
+    #include "sys_StringT.h"
     #include "JsonDelegate.h"
 
 namespace rdl {

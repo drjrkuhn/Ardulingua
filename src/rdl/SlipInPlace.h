@@ -39,8 +39,8 @@
         #define SLIP_UNROLL_LOOPS 1
     #endif
 
-    #include "Polyfills/std_type_traits.h" // for enable_if
-    #include "common_rdl.h"
+    #include "std_type_traits.h" // for enable_if
+    #include "Common.h"
     #include <ctype.h>  // for isprint
     #include <stdint.h> // for uint8_t
     #include <stdlib.h> // for itoa
@@ -107,6 +107,11 @@ namespace rdl {
             static constexpr int num_specials = (is_null_encoded ? 3 : 2);
 
          protected:
+            ///////////////////////////////////////////////////////////////
+            // TODO: Try to implement static variable workaround similar to
+            // [N3651](https://isocpp.org/files/papers/N3651.pdf)
+            ///////////////////////////////////////////////////////////////
+
             /** An array of special characters to escape */
             static __ALWAYS_INLINE__ const _CharT* special_codes() noexcept {
                 // Work around no-statics in header-only libraries under C++11. Should stay valid until program exit

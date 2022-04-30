@@ -3,7 +3,7 @@
 #ifndef __LOGGER_H__
     #define __LOGGER_H__
 
-    #include "StringT.h"
+    #include "sys_StringT.h"
     #include <ArduinoJson.h>
 
 class Printable;

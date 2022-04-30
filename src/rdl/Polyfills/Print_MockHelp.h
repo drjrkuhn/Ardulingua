@@ -8,21 +8,22 @@
  * @copyright Copyright (c) 2022
  * 
  */
+
 #pragma once
 
-#ifndef __ARD_PRINTMOCKHELP_H__
-#define __ARD_PRINTMOCKHELP_H__
+#ifndef __PRINT_MOCKHELP_H__
+#define __PRINT_MOCKHELP_H__
 
 #ifdef ARDUINO
 #error Use Print and String classes from Arduino.h instead
 #endif
 
-#include "../StringT.h"
+#include "../sys_StringT.h"
 #include <type_traits>
 #include <algorithm>
 #include <cmath>
 
-namespace rdl {
+namespace sys {
 
 	/**
 	 * Append the value of a generic **unsigned** integer to a generic string with a generic base.
@@ -30,7 +31,7 @@ namespace rdl {
 	 * Output should be the similar to the Arduino's Print.printNumber() function.
 	 */
 	template<typename numT, typename std::enable_if<std::is_integral<numT>::value&& std::is_unsigned<numT>::value, bool>::type = true>
-	rdl::StringT& appendNumber(rdl::StringT& dest, numT number, int base, bool reversed = false)
+	sys::StringT& appendNumber(sys::StringT& dest, numT number, int base, bool reversed = false)
 	{
 		if (base < 2) base = 2;
 		// create the number string in reverse order by appending digits
@@ -53,7 +54,7 @@ namespace rdl {
 	 * numbers are represented as their two's complement.
 	 */
 	template<typename numT, typename std::enable_if<std::is_integral<numT>::value&& std::is_signed<numT>::value, bool>::type = true>
-	rdl::StringT& appendNumber(rdl::StringT& dest, numT number, int base, bool reversed = false)
+	sys::StringT& appendNumber(sys::StringT& dest, numT number, int base, bool reversed = false)
 	{
 		using unsignedN = typename std::make_unsigned<numT>::type;
 		constexpr bool KEEP_REVERSED = true;
@@ -83,7 +84,7 @@ namespace rdl {
 	 * print exponential notation.
 	 */
 	template<typename numT, typename std::enable_if<std::is_floating_point<numT>::value, bool>::type = true>
-	rdl::StringT& appendNumber(rdl::StringT& dest, numT number, int decimalPlaces, bool dummy = false)
+	sys::StringT& appendNumber(sys::StringT& dest, numT number, int decimalPlaces, bool dummy = false)
 	{
 		if (decimalPlaces < 0)
 			decimalPlaces = 2;
@@ -127,20 +128,20 @@ namespace rdl {
 	}
 
 	/**
-	 * Convert generic integers (signed or unsigned) or floating point to a rdl::StringT.
+	 * Convert generic integers (signed or unsigned) or floating point to a sys::StringT.
 	 * Integers take a base as the second parameter (HEX, DEC, etc). Floating points
 	 * take a decimal places as the second parameter (number of digits after the decimal).
 	 *
 	 * Output should be the similar to the Arduino's Print.printNumber() function.
 	 */
 	template<typename numT, typename std::enable_if<std::is_integral<numT>::value || std::is_floating_point<numT>::value, bool>::type = true>
-	rdl::StringT to_string(numT number, int baseOrPlaces)
+	sys::StringT to_string(numT number, int baseOrPlaces)
 	{
-		rdl::StringT res;
+		sys::StringT res;
 		return appendNumber(res, number, baseOrPlaces);
 	}
 
 } // namespace arduino
 
 
-#endif // __ARD_PRINTMOCKHELP_H__
+#endif // __PRINT_MOCKHELP_H__

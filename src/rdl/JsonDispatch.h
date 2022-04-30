@@ -3,11 +3,11 @@
 #ifndef __JSONDISPATCH_H__
     #define __JSONDISPATCH_H__
 
-    #include "StringT.h"
+    #include "sys_StringT.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
-    #include "Polyfills/std_utility.h"
-    #include "Polyfills/sys_timing.h"
+    #include "std_utility.h"
+    #include "sys_timing.h"
     #include "SlipInPlace.h"
     #include <ArduinoJson.h>
     #include <thread>
@@ -186,6 +186,15 @@ namespace rdl {
             retry_delay_ms_ = retry_delay_ms;
         }
 
+        logger_base& logger() { return logger_; }
+        
+        logger_base& logger(logger_base& log) {
+            logger_ = log;
+            return logger_;
+        }
+
+
+
         template <typename... PARAMS>
         int toJsonArray(JsonArray& params, PARAMS... args) {
             bool add_res[sizeof...(args)] = {params.add(args)...};
@@ -328,12 +337,6 @@ namespace rdl {
                 return ERROR_JSON_INVALID_REPLY;
             // check for error in reply
             return msgdoc[RK_ERROR] | ERROR_OK;
-        }
-
-        logger_base& logger() { return logger_; }
-        logger_base& logger(logger_base& log) {
-            logger_ = log;
-            return logger_;
         }
 
      protected:

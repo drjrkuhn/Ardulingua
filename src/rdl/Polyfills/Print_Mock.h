@@ -1,3 +1,4 @@
+#pragma once
 /*
   Copyright (c) 2016 Arduino LLC.  All right reserved.
 
@@ -16,12 +17,13 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#pragma once
+#ifndef __PRINT_MOCK_H__
+#define __PRINT_MOCK_H__
 
-#include "../StringT.h"
-#include "ard_PrintMockHelp.h"
-#include "ard_PrintableMock.h"
-#include "std_type_traits.h"
+#include "../sys_StringT.h"
+#include "../std_type_traits.h"
+#include "Print_MockHelp.h"
+#include "Printable_Mock.h"
 
 #define DEC 10
 #define HEX 16
@@ -31,7 +33,7 @@
 /**
  * Arduino-compatible Print class using STL strings
  */
-namespace rdl {
+namespace sys {
 
     class Print {
      private:
@@ -73,14 +75,14 @@ namespace rdl {
         size_t write_from(const char* begin, const char* end) {
             return write(&begin[0], end - begin);
         }
-        size_t write(const rdl::StringT& str) {
+        size_t write(const sys::StringT& str) {
             return write(str.c_str(), str.length());
         }
         size_t write(const char* buffer, size_t size) {
             return write((const uint8_t*)buffer, size);
         }
 
-        size_t print(const rdl::StringT& s) { return write(s.c_str(), s.length()); }
+        size_t print(const sys::StringT& s) { return write(s.c_str(), s.length()); }
         size_t print(const rdl::__FlashStringHelper* ifsh) { return print(reinterpret_cast<const char*>(ifsh)); }
         size_t print(const char str[]) { return write(str); }
         size_t print(char c) { return write(c); }
@@ -107,7 +109,7 @@ namespace rdl {
             w += println();
             return w;
         }
-        size_t println(const rdl::StringT& str) {
+        size_t println(const sys::StringT& str) {
             size_t w = print(str);
             w += println();
             return w;
@@ -188,4 +190,6 @@ namespace rdl {
         }
     };
 
-} // namespace arduino
+} // namespace
+
+#endif // __PRINT_MOCK_H__

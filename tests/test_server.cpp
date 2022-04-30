@@ -1,4 +1,4 @@
-#include <rdl/StringT.h>
+#include <rdl/sys_StringT.h>
 #include <rdl/ServerProperty.h>
 #include <rdl/JsonDelegate.h>
 #include <rdl/JsonDispatch.h>
@@ -20,7 +20,7 @@
 using namespace rdl;
 using namespace arduino;
 
-Print_stdostream<std::ostream> cout_Print(std::cout);
+Print_ostream<std::ostream> cout_Print(std::cout);
 using LoggerT = logger_base<Print>;
 LoggerT clientlogger(&cout_Print);
 LoggerT serverlogger(&cout_Print);
@@ -48,7 +48,7 @@ struct TYPEDEBUG;
 
 std::stringstream ss_toserver;
 std::stringstream ss_fromserver;
-using StreamT = Stream_stdstream<std::stringstream>;
+using StreamT = Stream_iostream<std::stringstream>;
 
 StreamT toserver(ss_toserver);
 StreamT fromserver(ss_fromserver);

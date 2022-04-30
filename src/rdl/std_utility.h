@@ -3,19 +3,26 @@
 #ifndef __POLYFILLS_STD_UTILITY_H__
     #define __POLYFILLS_STD_UTILITY_H__
 
-// TODO: Substitute Andy Brown's STL lib for arduino
-// https://andybrown.me.uk/2011/01/15/the-standard-template-library-stl-for-avr-with-c-streams/
+// TODO: Substitute Embedded Template Library for Arduino without
+// https://www.etlcpp.com/
 
 // from https://gist.github.com/ntessore/dc17769676fb3c6daa1f
 
     #ifdef __has_include
-        #if __has_include(<utility>) && (__cplusplus >= 201402L || _MSVC_LANG >= 201402L) // for integer_sequence
+        #if __has_include(<utility>)
             #include <utility>
-        #else
+            #if (__cplusplus >= 201402L || _MSVC_LANG >= 201402L) // for integer_sequence
+                #define HAS_INTEGER_SEQUENCE 1
+            #else
+                #define HAS_INTEGER_SEQUENCE 0
+            #endif
+        #endif
+    #endif // __has_include
 
-            #include <cstddef> // for size_t
+    #if !(HAS_INTEGER_SEQUENCE)
 
-// C++11 version of integer_sequence
+    // C++11 version of integer_sequence
+        #include <cstddef> // for size_t
 namespace std {
     template <typename T, T... Ints>
     struct integer_sequence {
@@ -39,8 +46,7 @@ namespace std {
 
     template <typename... T>
     using index_sequence_for = make_index_sequence<sizeof...(T)>;
-}
-        #endif                 // #if __has_include(<utility>)
-    #endif                     // #ifdef __has_include
+} // namespace
+    #endif // !(HAS_INTEGER_SEQUENCE)
 
 #endif // __POLYFILLS_STD_UTILITY_H__

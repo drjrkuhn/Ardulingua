@@ -1,5 +1,5 @@
 /**
- * @file StringT.h
+ * @file sys_StringT.h
  * @author Jeffrey Kuhn (jrkuhn@mit.edu)
  * @brief Common Strings for Arduino and Host
  * @version 0.1
@@ -19,18 +19,18 @@
  * const char*, copy, move, assignment, several operators, c_str, and length.
  * Where they differ, the rdl namespace provides a common set of accessors.
  * 
- * We define platform-dependent type alias to rdl::StringT below, and all
- * rdl algorithms and classes should use this common rdl::StringT and accessors
+ * We define platform-dependent type alias to sys::StringT below, and all
+ * rdl algorithms and classes should use this common sys::StringT and accessors
  * methods defined here. The name StringT is chosen to make it more obvious
  * that this is a type alias to an underlying implementation.
  */
 
 #pragma once
 
-#include "common_rdl.h"
+#include "Common.h"
 
-#ifndef __STRINGT_H__
-    #define __STRINGT_H__
+#ifndef __SYS_STRINGT_H__
+    #define __SYS_STRINGT_H__
 
     #ifdef ARDUINO
         #ifdef __has_include
@@ -42,8 +42,8 @@
                 #error Could not find Arduino String definition
             #endif
         #endif
-namespace rdl {
-    using StringT = String;
+namespace sys {
+    using StringT = ::String;
 
     __ALWAYS_INLINE__ StringT& append(StringT& str, const char c) {
         str.concat(c);
@@ -53,9 +53,9 @@ namespace rdl {
     __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(c); }
 }
 
-    #else
+    #else // NOT ARDUINO
         #include <string>
-namespace rdl {
+namespace sys {
     using StringT = std::string;
     class __FlashStringHelper;
 
@@ -63,9 +63,9 @@ namespace rdl {
     __ALWAYS_INLINE__ StringT& append(StringT& str, const char c) { return str.append(1, c); }
     __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(1, c); }
 }
-    #endif
+    #endif // NOT ARDUINO
 
-namespace rdl {
+namespace sys {
     /**
      * Fast unordered_map hash function for strings
      * 
@@ -102,6 +102,6 @@ namespace rdl {
         }
     };
 
-}; // namespace rdl
+}; // namespace sys
 
-#endif // __STRINGT_H__
+#endif // __SYS_STRINGT_H__

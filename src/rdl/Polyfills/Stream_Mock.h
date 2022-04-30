@@ -1,10 +1,30 @@
 #pragma once
+/*
+  Copyright (c) 2016 Arduino LLC.  All right reserved.
 
-#include "../StringT.h"
-#include "ard_PrintMock.h"
-#include "sys_timing.h"
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
 
-namespace rdl {
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the GNU Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef __STREAM_MOCK_H__
+    #define __STREAM_MOCK_H__
+
+    #include "../sys_StringT.h"
+    #include "../sys_timing.h"
+    #include "Print_Mock.h"
+
+namespace sys {
 
     const unsigned long PARSE_TIMEOUT = 1000; // default number of milli-seconds to wait
 
@@ -17,7 +37,7 @@ namespace rdl {
         SKIP_WHITESPACE // Only tabs, spaces, line feeds & carriage returns are skipped.
     };
 
-#define NO_IGNORE_CHAR '\x01' // a char not found in a valid ASCII numeric field
+    #define NO_IGNORE_CHAR '\x01' // a char not found in a valid ASCII numeric field
 
     class Stream : public Print {
      protected:
@@ -26,13 +46,13 @@ namespace rdl {
                                     // private method to read stream with timeout
         virtual int timedRead() {
             int c;
-            _startMillis = sys_millis();
+            _startMillis = sys::millis();
             do {
                 c = read();
                 if (c >= 0) return c;
-                sys_yield();
-                sys_delay(1);
-            } while (sys_millis() - _startMillis < _timeout);
+                sys::yield();
+                sys::delay(1);
+            } while (sys::millis() - _startMillis < _timeout);
             return -1; // -1 indicates timeout
         }
 
@@ -41,16 +61,16 @@ namespace rdl {
         // discards non-numeric characters
         virtual int timedPeek() {
             int c;
-            _startMillis = sys_millis();
+            _startMillis = sys::millis();
             do {
                 c = peek();
                 if (c >= 0) return c;
-                sys_yield();
-                sys_delay(1);
-            } while (sys_millis() - _startMillis < _timeout);
+                sys::yield();
+                sys::delay(1);
+            } while (sys::millis() - _startMillis < _timeout);
             return -1; // -1 indicates timeout
-        }              
-        
+        }
+
         int peekNextDigit(LookaheadMode lookahead, bool detectDecimal) {
             int c;
             while (1) {
@@ -201,21 +221,21 @@ namespace rdl {
             return index; // return number of characters, not including null terminator
         }
 
-        virtual rdl::StringT readString() {
-            rdl::StringT ret;
+        virtual sys::StringT readString() {
+            sys::StringT ret;
             int c = timedRead();
             while (c >= 0) {
-                rdl::append(ret, (char)c);
+                sys::append(ret, (char)c);
                 c = timedRead();
             }
             return ret;
         }
 
-        virtual rdl::StringT readStringUntil(char terminator) {
-            rdl::StringT ret;
+        virtual sys::StringT readStringUntil(char terminator) {
+            sys::StringT ret;
             int c = timedRead();
             while (c >= 0 && (char)c != terminator) {
-                rdl::append(ret, (char)c);
+                sys::append(ret, (char)c);
                 c = timedRead();
             }
             return ret;
@@ -231,7 +251,7 @@ namespace rdl {
         // returns true if target string is found, false if timed out (see setTimeout)
         bool find(const uint8_t* target, size_t length) { return find((const char*)target, length); }
         // returns true if target string is found, false if timed out
-        bool find(const std::string target) { return find(target.c_str(), target.length()); }
+        bool find(const sys::StringT target) { return find(target.c_str(), target.length()); }
 
         // same as find but search ends if the terminator string is found
         bool findUntil(const char* target, const char* terminator) {
@@ -333,6 +353,8 @@ namespace rdl {
         }
     };
 
-#undef NO_IGNORE_CHAR
+    #undef NO_IGNORE_CHAR
 
 }
+
+#endif // __STREAM_MOCK_H__
