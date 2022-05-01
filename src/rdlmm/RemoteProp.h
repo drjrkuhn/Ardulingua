@@ -3,13 +3,13 @@
 #ifndef __REMOTEPROP_H__
     #define __REMOTEPROP_H__
 
+    #include "../rdl/Delegate.h"
+    #include "../rdl/JsonDispatch.h"
     #include "../rdl/sys_StringT.h"
     #include "DeviceError.h"
     #include "DeviceProp.h"
     #include "DevicePropHelpers.h"
     #include "Stream_HubSerial.h"
-    #include "../rdl/Delegate.h"
-    #include "../rdl/JsonDispatch.h"
     #include <tuple>
 
 /************************************************************************
@@ -157,30 +157,24 @@ namespace rdlmm {
 
     template <class DeviceT, typename LocalT, typename RemoteT, typename... ExT>
     class RemoteProp_Base : public DeviceProp_Base<DeviceT, LocalT> {
-     protected:
-        using BaseT          = DeviceProp_Base<DeviceT, LocalT>;
-        using ThisT          = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
-        using ActionT        = MM::Action<ThisT>;
-        using StreamAdapterT = rdlmm::Stream_HubSerial<DeviceT>;
-        using ClientT        = rdl::json_client<StreamAdapterT, StreamAdapterT, JSONRCP_BUFFER_SIZE>;
-        using ExtrasT        = std::tuple<ExT...>;
-
-        RemoteProp_Base() : client_(nullptr) {}
-        ClientT* client_;
-        ExtrasT extra_;
-        rdl::delegate<rdl::RetT<RemoteT>, LocalT> to_remote_fn_;
-        rdl::delegate<rdl::RetT<LocalT>, RemoteT> to_local_fn_;
-        long cached_max_seq_size_;
-
      public:
+        using BaseT   = DeviceProp_Base<DeviceT, LocalT>;
+        using ThisT   = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
+        using ActionT = MM::Action<ThisT>;
+        //using StreamAdapterT = rdlmm::Stream_HubSerial<DeviceT>;
+        using ClientT   = rdl::json_client<JSONRCP_BUFFER_SIZE>;
+        using ExtrasT   = std::tuple<ExT...>;
+        using ToRemoteT = rdl::delegate<rdl::RetT<RemoteT>, LocalT>;
+        using ToLocalT  = rdl::delegate<rdl::RetT<LocalT>, RemoteT>;
+
         /*	Link the property to the device and initialize from the propInfo. */
         virtual int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo, ExT... args) {
-            client_       = client;
-            brief_        = propInfo.brief(); // copy early for get/set before createAndLinkProp()
-            extra_        = std::tie(args...);
-            cached_max_seq_size_ = -1;  // trigger a get max size at the beginning
-            to_remote_fn_ = rdl::delegate<rdl::RetT<RemoteT>, LocalT>::create([](LocalT v) { return static_cast<RemoteT>(v); });
-            to_local_fn_  = rdl::delegate<rdl::RetT<LocalT>, RemoteT>::create([](RemoteT v) { return static_cast<LocalT>(v); });
+            client_              = client;
+            brief_               = propInfo.brief(); // copy early for get/set before createAndLinkProp()
+            extra_               = std::tie(args...);
+            cached_max_seq_size_ = -1; // trigger a get max size at the beginning
+            to_remote_delegate_  = ToRemoteT::create([](LocalT v) { return static_cast<RemoteT>(v); });
+            to_local_delegate_   = ToLocalT::create([](RemoteT v) { return static_cast<LocalT>(v); });
 
             if (propInfo.hasInitialValue()) {
                 LocalT v = propInfo.initialValue();
@@ -192,6 +186,51 @@ namespace rdlmm {
             }
             MM::ActionFunctor* pAct = new ActionT(this, &ThisT::OnExecute);
             return createAndLinkProp(device, propInfo, pAct);
+        }
+
+        /** 
+         * Convert local to remote values.
+         * 
+         * The default method uses delegates. Change the default
+         * behavior by either:
+         * - Creating delegates and setting them with `to_remote_delegate`
+         *   and `to_local_delegate`.
+         * - Specialize the property and override `virtual to_remote()`
+         *   and `virtual to_local()` methods.
+         */
+        virtual RemoteT to_remote(const LocalT local) {
+            return to_remote_delegate_(local);
+        }
+
+        /** 
+         * Convert remote to local values.
+         * 
+         * The default method uses delegates. Change the default
+         * behavior by either:
+         * - Creating delegates and setting them with `to_remote_delegate`
+         *   and `to_local_delegate`.
+         * - Specialize the property and override `virtual to_remote()`
+         *   and `virtual to_local()` methods.
+         */
+        virtual LocalT to_local(const RemoteT remote) const {
+            return to_local_delegate_(remote);
+        }
+
+        /** Set the default conversion delegate */
+        void to_remote_delegate(ToRemoteT& to_remote) const {
+            to_remote_delegate_ = to_remote;
+        }
+
+        /** Set the default conversion delegate */
+        void to_local_delegate(ToLocalT& to_local) {
+            to_local_delegate_ = to_local;
+        }
+
+        ToRemoteT& to_remote_delegate() const {
+            return to_remote_delegate_;
+        }
+        ToLocalT& to_local_delegate() const {
+            return to_local_delegate_;
         }
 
      protected:
@@ -219,7 +258,7 @@ namespace rdlmm {
         }
 
         virtual int set_impl(const LocalT localv) override {
-            RemoteT remotev = to_remote_fn_(localv);
+            RemoteT remotev = to_remote(localv);
             int ret;
             if (isVolatile_) {
                 // NSET-GET pair
@@ -229,7 +268,7 @@ namespace rdlmm {
                 ret = client_->call_get_tuple<RemoteT>(meth_str('?').c_str(), remotev, extras());
                 if (ret != DEVICE_OK)
                     return ret;
-                cachedValue_ = to_local_fn_(remotev);
+                cachedValue_ = to_local(remotev);
             } else {
                 // SET call
                 ret = client_->call_tuple(meth_str('!').c_str(), withextras(remotev));
@@ -246,7 +285,7 @@ namespace rdlmm {
             int ret         = client_->call_get_tuple<RemoteT, ExtrasT>(meth_str('?').c_str(), remotev, extra_);
             if (ret != DEVICE_OK)
                 return ret;
-            localv       = to_local_fn_(remotev);
+            localv       = to_local(remotev);
             cachedValue_ = localv;
             return DEVICE_OK;
         }
@@ -306,11 +345,11 @@ namespace rdlmm {
                 for (int i = 0; i < seqsize; i++) {
                     // add the value
                     LocalT localv   = Parse<LocalT>(sequence[i]);
-                    RemoteT remotev = to_remote_fn_(localv);
+                    RemoteT remotev = to_remote(localv);
                     if ((ret = client_->notify_tuple(meth_str('+').c_str(), withextras(remotev))) != DEVICE_OK) {
                         return ret;
                     }
-                    int size = i+1;
+                    int size = i + 1;
                     if (size % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || size == seqsize) {
                         // verify the current size
                         if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != DEVICE_OK) {
@@ -331,29 +370,13 @@ namespace rdlmm {
             return DEVICE_OK;
         }
 
-        //      /**	Link the property to the device through the stream and initialize from the propInfo.
-        //   * **THIS IS THE PRIMARY ENTRY POINT for creating remote properties.**
-        //*/
-        //      int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo) {
-        //          client_ = client;
-
-        //          MM::ActionFunctor* action = new ActionT(this, &RemoteProp_Base<DeviceT, LocalT>::OnExecute);
-
-        //          bool useInitialValue = false;
-        //          try {
-        //              ASSERT_TRUE(propInfo.brief() != nullptr && !propInfo.brief().empty()), ERROR_JSON_METHOD_NOT_FOUND);
-        //              // set the property on the remote device if possible
-        //              LocalT val;
-        //              ASSERT_OK(client_->call<RetT<LocalT>>(meth_str('?').c_str(), val));
-        //              ASSERT_OK(BaseT::createAndLinkProp(device, propInfo, action, propInfo.isReadOnly(), useInitialValue));
-        //              BaseT::cachedValue_ = val;
-        //              return DEVICE_OK;
-        //          } catch (DeviceResultException e) {
-        //              // Create an "ERROR" property if assert was turned off during compile.
-        //              device->CreateProperty(propInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
-        //              return DEVICE_INVALID_PROPERTY;
-        //          }
-        //      }
+     protected:
+        RemoteProp_Base() : client_(nullptr) {}
+        ClientT* client_;
+        ExtrasT extra_;
+        rdl::delegate<rdl::RetT<RemoteT>, LocalT> to_remote_delegate_;
+        rdl::delegate<rdl::RetT<LocalT>, RemoteT> to_local_delegate_;
+        long cached_max_seq_size_;
     };
 
     /////////////////////////////////////////////////////////////////////////////
@@ -361,208 +384,134 @@ namespace rdlmm {
     /////////////////////////////////////////////////////////////////////////////
 
     /**
-		A class to hold a read/write remote property value.
-
-		\ingroup RemoteProp
-
-		Micromanager updates the
-		property through the OnExecute member function, which in turn
-		gets or sets the value from the device.
-	*/
-    //template <typename LocalT, class DeviceT, class HubT>
-    //class SimpleRemoteProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
-    //    typedef hprot::DeviceHexProtocol<HubT> ProtoT;
-
-    //public:
-    //   int createRemoteProp(DeviceT* device, ProtoT* stream, const PropInfo<LocalT>& propInfo, CommandSet& __cmds) {
-    //       assert(__cmds.propInfo() || __cmds.cmdGet());
-    //       return createRemoteProp_impl(device, stream, propInfo, __cmds);
-    //   }
-    //};
-
-    template <class DeviceT, typename LocalT>
-    struct SimpleRemnoteProp : public RemoteProp_Base<DeviceT, LocalT, LocalT> {
+     * A class to hold a read/write remote property value.
+     * 
+     * Micromanager updates the property through the OnExecute 
+     * member function, which in turn gets or sets the value from the device.
+     */
+    template <class DeviceT, typename LocalT, typename RemoteT = LocalT>
+    struct RemoteSimpleProp : public RemoteProp_Base<DeviceT, LocalT, RemoteT> {
      public:
-        using BaseT = RemoteProp_Base<DeviceT, LocalT, LocalT>;
-        using ThisT = SimpleRemnoteProp<DeviceT, LocalT>;
+        using BaseT = RemoteProp_Base<DeviceT, LocalT, RemoteT>;
+        using ThisT = RemoteSimpleProp<DeviceT, LocalT, RemoteT>;
     };
 
     /**
-	A class to hold a write-only remote property value.
+     * A class to hold a read/write remote channel property value.
+     * 
+     * Micromanager updates the property through the OnExecute 
+     * member function, which in turn gets or sets the value from the device.
+     */
+    template <class DeviceT, typename LocalT, typename RemoteT = LocalT>
+    struct RemoteChannelProp : public RemoteProp_Base<DeviceT, LocalT, RemoteT, int> {
+     public:
+        using BaseT = RemoteProp_Base<DeviceT, LocalT, RemoteT, int>;
+        using ThisT = RemoteChannelProp<DeviceT, LocalT, RemoteT>;
 
-	\ingroup RemoteProp
+        virtual int maxChannels() {
+            long max_chan = 0;
+            if (cached_max_channels_ < 0) {
+                int ret;
+                // **WARNING** caching assumes remote property has a static maximum channel size
+                if ((ret = client_->call_get<long, int>(meth_str('^').c_str(), max_chan, -1)) != DEVICE_OK)
+                    max_chan = 0;
+                else
+                    cached_max_channels_ = max_chan;
+            } else {
+                max_chan = cached_max_channels_;
+            }
+            return max_chan;
+        }
 
-	Micromanager updates
-	the property through the OnExecute member function, which in turn
-	sets the value from the device and updates the getCachedValue.
-	Get simply returns the last cached value.
-	*/
-    //template <typename LocalT, class DeviceT, class HubT>
-    //class RemoteCachedProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
-    //    typedef hprot::DeviceHexProtocol<HubT> ProtoT;
+        RemoteChannelProp() : BaseT(), cached_max_channels_(-1) {}
 
-    // public:
-    //    int createRemoteProp(DeviceT* device, ProtoT* stream, const PropInfo<LocalT>& propInfo, CommandSet& __cmds) {
-    //        assert(__cmds.propInfo());
-    //        return createRemoteProp_impl(device, stream, propInfo, __cmds);
-    //    }
-    //};
+     protected:
+        virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
+            int ret = BaseT::OnExecute(pprop, action);
+            return ret;
+        }
 
-    /**
-	A class to hold a sequencable write-only remote property value.
+        int cached_max_channels_;
+    };
 
-	\ingroup RemoteProp
-
-	Micromanager updates the property through the OnExecute member function,
-	which in turn sets the value from the device and updates the getCachedValue.
-	Get simply returns the last cached value. This version exposes the sequencable
-	helper interface.
-
-	*/
-    //template <typename LocalT, class DeviceT, class HubT>
-    //class RemoteSequenceableProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
-    //    typedef hprot::DeviceHexProtocol<HubT> ProtoT;
-
-    // public:
-    //    int createRemoteProp(DeviceT* device, ProtoT* stream, const PropInfo<LocalT>& propInfo, CommandSet& __cmds) {
-    //        assert(__cmds.propInfo() && __cmds.cmdSetSeq() && __cmds.cmdStartSeq() && __cmds.cmdStopSeq());
-    //        return createRemoteProp_impl(device, stream, propInfo, __cmds);
-    //    }
-
-    //    std::vector<LocalT> GetRemoteArray() {
-    //        return getRemoteArrayH<LocalT>(RemoteProp_Base<LocalT, DeviceT, HubT>::cmds_.cmdGetSeq());
-    //    }
-
-    //    /** Get the maximum size of the remote sequence. */
-    //    int getRemoteSequenceSize(hprot::prot_size_t& __size) const {
-    //        return getRemoteSequenceSize_impl(__size);
-    //    }
-
-    //    /** Set a remote sequence. */
-    //    int setRemoteSequence(const std::vector<sys::StringT> __sequence) {
-    //        return setRemoteSequence_impl(__sequence);
-    //    }
-
-    //    /** Start the remote sequence. */
-    //    int startRemoteSequence() {
-    //        return startRemoteSequence_impl();
-    //    }
-
-    //    /** Stop the remote sequence. */
-    //    int stopRemoteSequence() {
-    //        return stopRemoteSequence_impl();
-    //    }
-
-    // protected:
-    //};
+    /////////////////////////////////////////////////////////////////////////////
+    // Remote device helpers
+    /////////////////////////////////////////////////////////////////////////////
 
     /**
-	A class to hold a read-only remote property value.
-
-	\ingroup RemoteProp
-
-	Micromanager updates
-	the property through the OnExecute member function, which in turn
-	gets the value from the device and updates the getCachedValue.
-	Sets do nothing.
-	*/
-    //template <typename LocalT, class DeviceT, class HubT>
-    //class RemoteReadOnlyProp : public RemoteProp_Base<LocalT, DeviceT, HubT> {
-    //    typedef RemoteProp_Base<LocalT, DeviceT, HubT> BaseT;
-    //    typedef hprot::DeviceHexProtocol<HubT> ProtoT;
-
-    // public:
-    //    int createRemoteProp(DeviceT* device, ProtoT* stream, const PropInfo<LocalT>& propInfo, CommandSet& __cmds) {
-    //        assert(__cmds.cmdGet());
-    //        return createRemoteProp_impl(device, stream, propInfo, __cmds);
-    //    }
-    //};
-
-    #if OLD_DeviceHexProtocol_Detection_Code
-    /** Used by DEV::DetectDevice to determine if a given serial port is actively
-			connected to a valid slave device. 
-		
-			Pseudo-code for the detection process
-			\code{.cpp}
-			tryStream(DEV* __target, sys::StringT __stream, long __baudRate) 
-			{
-				... // Call a series of methods that boil down to __target->setupStreamPort(__stream);
-				this->startProtocol(__target, __stream);
-				this->purgeComPort();
-				int ret = this->testProtocol();
-				this->endProtocol();
-				if (ret == DEVICE_OK) {
-					... // cleanup __target
-					return MM::CanCommunicate;
-				} else {
-					... // cleanup __target
-					return MM::MM::CanNotCommunicate;
-				}
-			}
-			\endcode
-
-			\warning endProtocol() is called after testProtocol(), so the protocol functions will no longer work.
-
-			@param __target	pointer to device to check
-			@param __stream serial port name to check, usually taken from some preInit "port" property.
-			@param __baudRate baud-rate to try (must be same as Arudino Serial.begin(baudRate) setting.
-			healthy slave device on this __stream.
-			@return @see MM::DeviceDetectionStatus
-		*/
-    MM::DeviceDetectionStatus tryStream(DEV* __target, sys::StringT __stream, long __baudRate) {
-        BaseClass::StreamGuard(this);
+     * Detect a hub device on a given stream.
+     * 
+     * MM::Device Client and Server Firmware must be compiled with the same JSON-RPC 
+     * protocol. Server firmware MUST have a JSON-RPC method named "?fver" that takes 
+     * an expected firmware name and returns the firmware version if the name matches 
+     * the internal firmware name.
+     * 
+     * @tparam DeviceT CDeviceHub type. Must have a `port()` method that returns a string
+     * 
+     * @param target        hub device for the query
+     * @param port          serial port to try
+     * @param baud_rate     baud rate to try
+     * @param firmname      expected firmware name of remote device
+     * @param minver        minimum firmware version required
+     * \return 
+     */
+    template <class DeviceT>
+    MM::DeviceDetectionStatus DetectRemote(DeviceT* hub, sys::StringT port, long baud_rate, sys::StringT firmname, long minver) {
+        Stream_HubSerial<DeviceT> adapter(hub);
         MM::DeviceDetectionStatus result = MM::Misconfigured;
         char defaultAnswerTimeout[MM::MaxStrLength];
         try {
             // convert stream name to lower case
-            sys::StringT streamLowerCase = __stream;
-            std::transform(streamLowerCase.begin(), streamLowerCase.end(), streamLowerCase.begin(), ::tolower);
-            if (0 < streamLowerCase.length() && 0 != streamLowerCase.compare("undefined") && 0 != streamLowerCase.compare("unknown")) {
-                const char* streamName = __stream.c_str();
-                result                 = MM::CanNotCommunicate;
-
-                MM::Core* core = accessor::callGetCoreCallback(__target);
+            sys::StringT port_lower = port;
+            std::transform(port_lower.begin(), port_lower.end(), port_lower.begin(), ::tolower);
+            if (port_lower.length() > 0 && port_lower != "undefined" && port_lower != "unknown") {
+                result                = MM::CanNotCommunicate;
+                const char* port_name = port.c_str();
+                MM::Core* core        = adapter.GetCoreCallback();
 
                 // record the default answer time out
-                core->GetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
+                core->GetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
 
                 // device specific default communication parameters for Arduino
-                core->SetDeviceProperty(streamName, MM::g_Keyword_BaudRate, std::to_string(__baudRate).c_str());
-                core->SetDeviceProperty(streamName, MM::g_Keyword_DataBits, g_SerialDataBits);
-                core->SetDeviceProperty(streamName, MM::g_Keyword_Parity, g_SerialParity);
-                core->SetDeviceProperty(streamName, MM::g_Keyword_StopBits, g_SerialStopBits);
-                core->SetDeviceProperty(streamName, MM::g_Keyword_Handshaking, g_SerialHandshaking);
-                core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, g_SerialAnswerTimeout);
-                core->SetDeviceProperty(streamName, MM::g_Keyword_DelayBetweenCharsMs, g_SerialDelayBetweenCharsMs);
-                MM::Device* pS = core->GetDevice(__target, streamName);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_BaudRate, std::to_string(baud_rate).c_str());
+                core->SetDeviceProperty(port_name, MM::g_Keyword_DataBits, g_SerialDataBits);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_Parity, g_SerialParity);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_StopBits, g_SerialStopBits);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_Handshaking, g_SerialHandshaking);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, g_SerialAnswerTimeout);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_DelayBetweenCharsMs, g_SerialDelayBetweenCharsMs);
 
-                pS->Initialize();
-
+                core->GetDevice(hub, port_name)->Initialize();
                 // The first second or so after opening the serial port, the Arduino is
                 // waiting for firmwareupgrades.  Simply sleep 2 seconds.
                 CDeviceUtils::SleepMs(2000);
-                startProtocol(__target, __stream);
-                purgeComPort();
-                // Try the detection function
-                int ret = testProtocol();
-                if (ret == DEVICE_OK) {
-                    // Device was detected!
-                    result = MM::CanCommunicate;
-                } else {
-                    // Device was not detected. Keep result = MM::CanNotCommunicate
-                    accessor::callLogMessageCode(__target, ret, true);
+
+                // Create a temporary json_client object and query the firmware version
+                rdl::json_client<JSONRCP_BUFFER_SIZE> client(adapter, adapter);
+
+                int firmware_version = 0;
+                error                = client.call_get<rdl::RetT<int>, std::string>("?fver", firmware_version, firmname);
+                if (error) {
+                    adapter->LogMessage("DetectRemote: JSON-RPC failed: ", false);
+                    adapter->LogMessageCode(error, false);
+                    return ERR_FIRMWARE_NOT_FOUND;
                 }
-                endProtocol();
-                pS->Shutdown();
+                if (firmware_version < minver) {
+                    std::stringstream ss;
+                    ss << "DetectRemote: firmware version " << firmware_version << " < min version " << minver;
+                    adapter->LogMessage(ss.str(), false);
+                }
+                return DEVICE_OK;
+
                 // always restore the AnswerTimeout to the default
-                core->SetDeviceProperty(streamName, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
             }
         } catch (...) {
-            accessor::callLogMessage(__target, "Exception in DetectDevice tryStream!", false);
+            adapter->LogMessage("Exception in DetectDevice tryStream!", false);
         }
         return result;
     }
-    #endif
+
 }; // namespace rdl
 
 #endif // __REMOTEPROP_H__

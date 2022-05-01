@@ -3,8 +3,9 @@
 #ifndef __SERVERPROPERTY_H__
     #define __SERVERPROPERTY_H__
 
-    #include "sys_StringT.h"
     #include "JsonDelegate.h"
+    #include "sys_PrintT.h"
+    #include "sys_StringT.h"
 
 namespace rdl {
 
@@ -15,7 +16,6 @@ namespace rdl {
      * parameters for extra property coding.
      * 
      ************************************************************************/
-
 
     /************************************************************************
      * Flexible virtual function interface to hold a property on a json_server
@@ -29,7 +29,7 @@ namespace rdl {
         /** Absolute base class type, used for virtual dispatch */
         using RootT = prop_any_base<T, ExT...>;
 
-        prop_any_base(const sys::StringT& brief_name) : brief_(brief_name) {}
+        prop_any_base(const sys::StringT& brief_name) : brief_(brief_name), logger_(nullptr) {}
         prop_any_base(prop_any_base& other) = default;
 
         bool operator==(const prop_any_base& other) const { return brief_ == other.brief_; }
@@ -62,8 +62,13 @@ namespace rdl {
 
         sys::StringT message(const char opcode) { return opcode + brief_; }
 
+        void logger(sys::PrintT* logger) {
+            logger_ = logger;
+        }
+
      protected:
         sys::StringT brief_;
+        sys::PrintT* logger_;
     };
 
     /**
@@ -134,25 +139,33 @@ namespace rdl {
      * @tparam T        property value type
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, long MAX_SEQ_SIZE, bool READONLY=false>
+    template <typename T, long MAX_SEQ_SIZE, bool READONLY = false>
     class simple_prop_base : public prop_any_base<T> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T>;
         using ThisT = simple_prop_base<T, MAX_SEQ_SIZE, READONLY>;
         using typename BaseT::RootT; // used for dispatch map creation
+        using BaseT::brief_;
+        using BaseT::logger_;
 
         simple_prop_base(const sys::StringT& brief_name, const T initial, bool sequencable = false)
             : BaseT(brief_name),
-              value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE), 
+              value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE),
               next_index_(0), size_(0), started_(false) {
         }
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get() const override {
+            if (logger_) {
+                logger_->println(brief_ + " simple prop get -> " + sys::to_string(value_));
+            }
             return value_;
         }
         virtual void set(const T value) override {
+            if (logger_) {
+                logger_->println(brief_ + " simple prop set = " + sys::to_string(value));
+            }
             value_ = value;
         }
         virtual long max_size() const override {
@@ -217,14 +230,16 @@ namespace rdl {
         using BaseT = prop_any_base<T, int>;
         using ThisT = channel_prop_base<T, MAX_CHANNELS>;
         using ChanT = prop_any_base<T>; // MAX_SEQ_SIZE doesn't matter for the reference
-        using typename BaseT::RootT; // used for dispatch map creation
+        using typename BaseT::RootT;    // used for dispatch map creation
+        using BaseT::logger_;
+        using BaseT::brief_;
 
         channel_prop_base(const sys::StringT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
         }
         channel_prop_base(const sys::StringT& brief_name, ChanT* props[], int nchan)
             : BaseT(brief_name), num_channels_(0) {
-                add(props, nchan);
+            add(props, nchan);
         }
 
         int add(ChanT* prop) {
@@ -242,93 +257,148 @@ namespace rdl {
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get(int chan) const override {
-            if (chan >= 0 && chan < num_channels_)
-                return channels_[chan]->get();
-            else
+            if (chan >= 0 && chan < num_channels_) {
+                T value = channels_[chan]->get();
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop get[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(value));
+                }
+                return value;
+            } else {
                 return T();
+            }
         }
         virtual void set(const T value, int chan) override {
-            if (chan >= 0 && chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop set[" + sys::to_string(chan) + "]" + " = " + sys::to_string(value));
+                }
                 channels_[chan]->set(value);
+            }
         }
         /**
          * Gets the maximum sequence size of a single chan or
          * the total number of channels if chan<0
          */
         virtual long max_size(int chan) const override {
-            if (chan < 0)
+            if (chan < 0) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop max_size[all] -> " + sys::to_string(num_channels_));
+                }
                 return num_channels_;
-            else if (chan < num_channels_)
-                return channels_[chan]->max_size();
-            else
+            } else if (chan < num_channels_) {
+                long size = channels_[chan]->max_size();
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop max_size[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(size));
+                }
+                return size;
+            } else {
                 return 0;
+            }
         }
         virtual long size(int chan) const override {
-            if (chan >= 0 && chan < num_channels_)
-                return channels_[chan]->size();
-            else
+            if (chan >= 0 && chan < num_channels_) {
+                long size = channels_[chan]->size();
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop size[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(size));
+                }
+                return size;
+            } else {
                 return 0;
+            }
         }
         virtual long clear(int chan) override {
-            if (chan >= 0 && chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop clear[" + sys::to_string(chan) + "]");
+                }
                 return channels_[chan]->clear();
-            else
+            } else {
                 return 0;
+            }
         }
         virtual void add(const T value, int chan) override {
-            if (chan >= 0 && chan < num_channels_)
+            if (chan >= 0 && chan < num_channels_) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop add[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(value));
+                }
                 channels_[chan]->add(value);
+            }
         }
         virtual void start(int chan) override {
             if (chan < 0) {
-                for (int i=0; i<num_channels_; i++)
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop start[" + sys::to_string(chan) + "]");
+                }
+                for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->start();
+                }
             } else if (chan < num_channels_) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop start[all]");
+                }
                 channels_[chan]->start();
             }
         }
         virtual void stop(int chan) override {
             if (chan < 0) {
-                for (int i=0; i<num_channels_; i++)
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop stop[" + sys::to_string(chan) + "]");
+                }
+                for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->stop();
+                }
             } else if (chan < num_channels_) {
+                if (logger_) {
+                    logger_->println(brief_ + " chan prop stop[all]");
+                }
                 channels_[chan]->stop();
             }
         }
 
         /** call with chan < 0 to check if all channels are sequencable  */
         virtual bool sequencable(int chan) const override {
+            bool seqable = true;
             if (chan < 0) { // check all channels
-                for (int i=0; i<num_channels_; i++) {
-                    if (!channels_[i]->sequencable())
-                        return false;
+                for (int i = 0; i < num_channels_; i++) {
+                    if (!channels_[i]->sequencable()) {
+                        seqable = false;
+                        break;
+                    }
                 }
-                return true;
             }
-            if (chan < num_channels_)
-                return channels_[chan]->sequencable();
-            return false;
+            if (chan < num_channels_) {
+                seqable = channels_[chan]->sequencable();
+            }
+            if (logger_) {
+                logger_->println(brief_ + " chan prop sequencable[" + sys::to_string(chan) + "]" + " -> " + (seqable ? "true":"false"));
+            }
+            return seqable;
         }
 
-        /** call with chan < 0 to check if all channels are read_only  */
+        /** call with chan < 0 to check if any channels are read_only  */
         virtual bool read_only(int chan) const override {
+            bool ronly = false;
             if (chan < 0) { // check all channels
-                for (int i=0; i<num_channels_; i++) {
-                    if (!channels_[i]->read_only())
-                        return false;
+                for (int i = 0; i < num_channels_; i++) {
+                    if (!channels_[i]->read_only()) {
+                        ronly = true;
+                        break;
+                    }
                 }
-                return true;
             }
-            if (chan < num_channels_)
-                return channels_[chan]->read_only();
-            return false;
+            if (chan < num_channels_) {
+                ronly = channels_[chan]->read_only();
+            }
+            if (logger_) {
+                logger_->println(brief_ + " chan prop read_only[" + sys::to_string(chan) + "]" + " -> " + (ronly ? "true":"false"));
+            }
+            return ronly;
         }
 
      protected:
         int num_channels_;
         ChanT* channels_[MAX_CHANNELS];
     };
-
 
 };
 

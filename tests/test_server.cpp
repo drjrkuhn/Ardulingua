@@ -41,9 +41,6 @@ simple_prop<float> barC("barC", 3.0);
 
 channel_prop<float> bars("bar");
 
-template <typename T>
-struct TYPEDEBUG;
-
 
 // std::stringstream ss_toserver;
 // std::stringstream ss_fromserver;
@@ -51,14 +48,18 @@ struct TYPEDEBUG;
 sys::Stream_StringT toserver;
 sys::Stream_StringT fromserver;
 
-using ServerT = json_server<sys::Stream_StringT, sys::Stream_StringT, MapT, 512>;
-using ClientT = json_client<sys::Stream_StringT, sys::Stream_StringT, 512>;
+using ServerT = json_server<MapT, 512>;
+using ClientT = json_client<512>;
 
 ////////// SERVER CODE /////////////
 
-#define SERVER_COL "\t\t\t\t\t\t"
+#define SERVER_COL "\t\t\t\t"
 
 ServerT server(toserver, fromserver, dispatch_map);
+
+// rdl::debug_type<ClientT> __;
+// rdl::debug_type<ServerT>();
+// rdl::debug_type<decltype(server)>(server);
 
 int setup_server() {
     server.logger(&serverlogger);
@@ -76,6 +77,8 @@ int setup_server() {
 
     add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable(), foo.read_only());
     add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.sequencable(-1), bars.read_only(-1));
+
+    bars.logger(&serverlogger);
 
     return 0;
 }

@@ -3,8 +3,8 @@
 #ifndef __STREAM_HUBSERIAL_H__
     #define __STREAM_HUBSERIAL_H__
 
-    #include "../rdl/sys_StringT.h"
     #include "../rdl/sys_StreamT.h"
+    #include "../rdl/sys_StringT.h"
     #include <cstddef> // for size_t
     #include <deque>
     #include <mutex>
@@ -22,9 +22,13 @@ namespace rdlmm {
      *
      * In other words, this class emulates an Arduino Serial or other read/write Stream
      * using serial-port read/write methods available to an MM HubBase device.
+     * 
+     * > NOTE: the hub DeviceT MUST have a public `port()` method that returns the
+     * > current serial port name.
      *
-     * > NOTE: Including the Arduino StreamT as a template parameters means we don't have
-     * > to include our emulated "ArduinoCore-host" api here.
+     * This adapter also exposes some of the Hub's protected methods to make
+     * generic DeviceT accessing a little easier. @see protected accessor struct
+     * for the mechanism.
      * 
      * ## Rules-of-thumb for mutex locking
      * 
@@ -36,14 +40,21 @@ namespace rdlmm {
      *    - private/protected methods don't have lock guards
      *    - public methods don't call each other (no lock overlap)
      *    - public methods call private/protected unlocked _impl methods
+     *    - private/protected methods don't call public methods
      *
-     * @tparam HubT         MM HubDevice
-     * @tparam StreamT      Arduino Stream base class to derive from.
+     * @tparam DeviceT  MM CDeviceHub type. MUST HAVE `port()` method that 
+     *                  returns a string with the current serial port name
      */
-    template <class HubT>
+    template <class DeviceT>
     class Stream_HubSerial : public sys::StreamT {
      public:
-        Stream_HubSerial(HubT* hub) : hub_(hub) {}
+        Stream_HubSerial(DeviceT* hub) : hub_(hub) {}
+
+        /** Get the current serial port name from the Hub device */
+        sys::StringT port() const {
+            std::lock_guard<std::mutex> _(guard_);
+            return port_impl();
+        }
 
         virtual size_t write(const uint8_t byte) override {
             std::lock_guard<std::mutex> _(guard_);
@@ -80,7 +91,7 @@ namespace rdlmm {
 
         virtual void clear() {
             std::lock_guard<std::mutex> _(guard_);
-            hub_->PurgeComPort(hub_->port().c_str());
+            accessor::PurgeComPort(hub_, port_impl().c_str());
         }
 
         size_t readBytes(char* buffer, size_t length) {
@@ -103,9 +114,85 @@ namespace rdlmm {
             return readBytesUntil_impl(terminator, reinterpret_cast<char*>(buffer), length);
         }
 
+        /** Expose the hub's LogMessage method */
+        int LogMessage(sys::StringT msg, bool debug_only = false) {
+            std::lock_guard<std::mutex> _(guard_);
+            return accessor::LogMessage(hub_, msg, debug_only);
+        }
+
+        /** Expose the hub's LogMessage method */
+        int LogMessage(const char* msg, bool debug_only = false) {
+            std::lock_guard<std::mutex> _(guard_);
+            return accessor::LogMessage(hub_, msg, debug_only);
+        }
+        /** Expose the hub's LogMessageCode method */
+        int LogMessageCode(const int errorCode, bool debug_only = false) const {
+            std::lock_guard<std::mutex> _(guard_);
+            return accessor::LogMessageCode(hub_, errorCode, debug_only);
+        }
+
+
+        /** Expose the hub's GetErrorText method */
+        bool GetErrorText(int errorCode, char* text) const {
+            std::lock_guard<std::mutex> _(guard_);
+            return accessor::GetErrorText(hub_, errorCode, text);
+        }
+
+        /** Expose the hub's GetCoreCallback method */
+        MM::Core* GetCoreCallback() const {
+            std::lock_guard<std::mutex> _(guard_);
+            return accessor::GetCoreCallbacl(hub_);
+        }
+
      protected:
+        // accessor for protected CDeviceBase methods
+        struct accessor : DeviceT {
+            static int PurgeComPort(DeviceT* target, const char* portLabel) {
+                int (DeviceT::*fn)(const char*) = &DeviceT::PurgeComPort;
+                return (target->*fn)(portLabel);
+            }
+            static int WriteToComPort(DeviceT* target, const char* portLabel, const unsigned char* buf, unsigned bufLength) {
+                int (DeviceT::*fn)(const char*, const unsigned char*, unsigned) = &DeviceT::WriteToComPort;
+                return (target->*fn)(portLabel, buf, bufLength);
+            }
+            static int ReadFromComPort(DeviceT* target, const char* portLabel, unsigned char* buf, unsigned bufLength, unsigned long& read) {
+                int (DeviceT::*fn)(const char*, unsigned char*, unsigned, unsigned long&) = &DeviceT::ReadFromComPort;
+                return (target->*fn)(portLabel, buf, bufLength, read);
+            }
+            static int GetSerialAnswer(DeviceT* target, const char* portName, const char* term, std::string& ans) {
+                int (DeviceT::*fn)(const char*, const char*, std::string&) = &DeviceT::GetSerialAnswer;
+                return (target->*fn)(portName, term, ans);
+            }
+            static int LogMessage(DeviceT* target, sys::StringT msg, bool debug_only = false) {
+                int (DeviceT::*fn)(const sys::StringT&, bool) const = &DeviceT::LogMessage;
+                return (target->*fn)(msg, debug_only);
+            }
+            static int LogMessage(DeviceT* target, const char* msg, bool debug_only = false) {
+                int (DeviceT::*fn)(const char*, bool) const = &DeviceT::LogMessage;
+                return (target->*fn)(msg, debug_only);
+            }
+            static int LogMessageCode(DeviceT* target, const int errorCode, bool debugOnly = false) {
+                int (DeviceT::*fn)(const int, bool) const = &DeviceT::LogMessageCode;
+                return (target->*fn)(errorCode, debugOnly);
+            }
+
+            static bool GetErrorText(DeviceT* target, int errorCode, char* text) {
+                bool (DeviceT::*fn)(int, char*) const = &DeviceT::GetErrorText;
+                return (target->*fn)(errorCode, text);
+            }
+            static MM::Core* GetCoreCallback(DeviceT* target) {
+                MM::Core* (DeviceT::*fn)() const = &DeviceT::GetCoreCallbak;
+                return (target->*fn)();
+            }
+
+        };
+
+        sys::StringT port_impl() const {
+            return hub_->port();
+        }
+
         size_t write_impl(const uint8_t* str, size_t n) {
-            int err = hub_->WriteToComPort(hub_->port().c_str(), str, static_cast<unsigned int>(n));
+            int err = accessor::WriteToComPort(hub_, port_impl().c_str(), str, static_cast<unsigned int>(n));
             return (err == DEVICE_OK) ? n : 0;
         }
 
@@ -140,16 +227,16 @@ namespace rdlmm {
                 length--;
             }
             unsigned long bytesRead;
-            int err = hub_->ReadFromComPort(hub_->port().c_str(), reinterpret_cast<unsigned char*>(buffer), static_cast<unsigned int>(length), bytesRead);
+            int err = accessor::ReadFromComPort(hub_, port_impl().c_str(), reinterpret_cast<unsigned char*>(buffer), static_cast<unsigned int>(length), bytesRead);
             if (err == DEVICE_OK) {
                 // GetSerialAnswer discards the terminator
                 if (lastc >= 0) bytesRead++;
                 return bytesRead;
             } else {
-                hub_->LogMessage("HubStreamAdapter::readBytes(buffer,length) failed: ");
+                accessor::LogMessage(hub_, "HubStreamAdapter::readBytes(buffer,length) failed: ");
                 char text[MM::MaxStrLength];
-                hub_->GetErrorText(err, text);
-                hub_->LogMessage(text);
+                accessor::GetErrorText(hub_, err, text);
+                accessor::LogMessage(hub_, text);
                 if (lastc >= 0) bytesRead++;
                 return bytesRead;
             }
@@ -193,32 +280,29 @@ namespace rdlmm {
             }
             sys::StringT answerString;
             const char termstr[]{terminator, '\0'};
-            int err = hub_->GetSerialAnswer(hub_->port().c_str(), termstr, answerString);
+            int err = accessor::GetSerialAnswer(hub_, port_impl().c_str(), termstr, answerString);
             if (err == DEVICE_OK) {
                 // GetSerialAnswer discards the terminator
                 compose.append(answerString);
                 compose.append(1, terminator);
             } else {
-                hub_->LogMessage(
-                    "HubStreamAdapter::readStdStringUntil(terminator) failed: ");
+                accessor::LogMessage(hub_, "HubStreamAdapter::readStdStringUntil(terminator) failed: ");
                 char text[MM::MaxStrLength];
-                hub_->GetErrorText(err, text);
-                hub_->LogMessage(text);
+                accessor::GetErrorText(hub_, err, text);
+                accessor::LogMessage(hub_, text);
             }
             return compose;
         }
 
         size_t readBytesUntil_impl(char terminator, char* buffer, size_t length) {
             sys::StringT answer = readStdStringUntil_impl(terminator);
-            size_t ngood       = std::min(answer.length(), length);
+            size_t ngood        = std::min(answer.length(), length);
             std::strncpy(buffer, answer.c_str(), ngood);
             if (answer.length() > length) {
-                hub_->LogMessage(
-                    "HubStreamAdapter::readBytesUntil(terminator,buffer,length) "
-                    "failed: ");
+                accessor::LogMessage(hub_, "HubStreamAdapter::readBytesUntil(terminator,buffer,length) failed: ");
                 char text[MM::MaxStrLength];
-                hub_->GetErrorText(DEVICE_BUFFER_OVERFLOW, text);
-                hub_->LogMessage(text);
+                accessor::GetErrorText(hub_, DEVICE_BUFFER_OVERFLOW, text);
+                accessor::LogMessage(hub_, text);
             }
             return ngood;
         }
@@ -231,7 +315,7 @@ namespace rdlmm {
                 do {
                     unsigned char buf;
                     unsigned long read;
-                    int err = hub_->ReadFromComPort(hub_->port().c_str(), &buf, 1, read);
+                    int err = accessor::ReadFromComPort(hub_, port_impl().c_str(), &buf, 1, read);
                     if (err == DEVICE_OK && read > 0) {
                         rdbuf_.push_back(buf);
                         return;
@@ -241,7 +325,7 @@ namespace rdlmm {
         }
 
         std::deque<unsigned char> rdbuf_;
-        HubT* hub_;
+        DeviceT* hub_;
         mutable std::mutex guard_;
     };
 

@@ -6,6 +6,7 @@
     #include "sys_StringT.h"
     #include "sys_PrintT.h"
     #include "sys_StreamT.h"
+    #include "JsonError.h"
     #include "JsonDelegate.h"
     #include "Logger.h"
     #include "std_utility.h"
@@ -17,8 +18,8 @@
 
     #define JSONRPC_USE_SHORT_KEYS 1
     // #define JSONRPC_USE_MSGPACK 1
-    #define JSONRPC_DEBUG_CLIENTSERVER 1
-    #define JSONRPC_DEBUG_SERVER_DISPATCH 1
+    // #define JSONRPC_DEBUG_CLIENTSERVER 1
+    // #define JSONRPC_DEBUG_SERVER_DISPATCH 1
 
     #define JSONRPC_DEFAULT_TIMEOUT 1000
     #define JSONRPC_DEFAULT_RETRY_DELAY 1
@@ -172,15 +173,15 @@ namespace rdl {
 
     };
 
-    #define SERVER_COL "\t\t\t\t\t\t"
+    #define SERVER_COL "\t\t\t\t"
 
     /************************************************************************
      * PROTOCOL BASE
      ***********************************************************************/
-    template <class IS, class OS>
+
     class protocol_base {
      public:
-        protocol_base(IS& istream, OS& ostream, uint8_t* buffer_data, size_t buffer_size,
+        protocol_base(sys::StreamT& istream, sys::StreamT& ostream, uint8_t* buffer_data, size_t buffer_size,
                       unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
                       unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
             : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size), logger_(no_logger()) {
@@ -347,8 +348,8 @@ namespace rdl {
             return &null_printer;
         }
 
-        IS& istream_;
-        OS& ostream_;
+        sys::StreamT& istream_;
+        sys::StreamT& ostream_;
         svc::buffer buffer_;
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
@@ -358,15 +359,14 @@ namespace rdl {
     /************************************************************************
      * SERVER
      ***********************************************************************/
-    template <class IS, class OS, class MAP, size_t BUFSIZE>
-    class json_server : public protocol_base<IS, OS> {
+    template <class MapT, size_t BUFSIZE>
+    class json_server : public protocol_base {
      public:
-        typedef protocol_base<IS, OS> BaseT;
-        using BaseT::logger;
+        using protocol_base::logger;
 
-        json_server(IS& istream, OS& ostream, MAP& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
+        json_server(sys::StreamT& istream, sys::StreamT& ostream, MapT& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
+            : protocol_base(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
               dispatch_map_(map) {
         }
 
@@ -389,10 +389,15 @@ namespace rdl {
             auto mapit = dispatch_map_.end();
             int id = -1, err = ERROR_OK;
             for (;;) { // "try" clause. Always use break to exit
-                err = BaseT::deserialize_call(msg, msgsize, method, id, args);
+                err = protocol_base::deserialize_call(msg, msgsize, method, id, args);
                 if (err != ERROR_OK) break;
                 mapit = dispatch_map_.find(method);
                 err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
+                if (err == ERROR_JSON_METHOD_NOT_FOUND) {
+                    DCS_BLK(logger_->print(SERVER_COL "SERVER method "); logger_->print(method); logger_->println(" not found"));
+                } else {
+                    DCS_BLK(logger_->print(SERVER_COL "SERVER calling "); logger_->print(method); logger_->println());
+                }
                 if (err != ERROR_OK) break;
                 json_stub jstub = mapit->second;
                 err             = jstub.call(args, result);
@@ -411,9 +416,9 @@ namespace rdl {
                 sys::yield();
                 msg.clear();
                 if (mapit != dispatch_map_.end() && !mapit->second.returns_void()) {
-                    err = BaseT::serialize_reply(msg, msgsize, id, result, err);
+                    err = protocol_base::serialize_reply(msg, msgsize, id, result, err);
                 } else {
-                    err = BaseT::serialize_reply(msg, msgsize, id, err);
+                    err = protocol_base::serialize_reply(msg, msgsize, id, err);
                 }
                 if (err != ERROR_OK)
                     return err;
@@ -426,28 +431,27 @@ namespace rdl {
         }
 
      protected:
-        using BaseT::istream_;
-        using BaseT::ostream_;
-        using BaseT::buffer_;
-        using BaseT::timeout_ms_;
-        using BaseT::retry_delay_ms_;
-        using BaseT::logger_;
-        MAP& dispatch_map_;
+        using protocol_base::istream_;
+        using protocol_base::ostream_;
+        using protocol_base::buffer_;
+        using protocol_base::timeout_ms_;
+        using protocol_base::retry_delay_ms_;
+        using protocol_base::logger_;
+        MapT& dispatch_map_;
         uint8_t buffer_data_[BUFSIZE];
     };
 
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <class IS, class OS, size_t BUFSIZE>
-    class json_client : protocol_base<IS, OS> {
+    template <size_t BUFSIZE>
+    class json_client : protocol_base {
      public:
-        typedef protocol_base<IS, OS> BaseT;
-        using BaseT::logger;
+        using protocol_base::logger;
 
-        json_client(IS& istream, OS& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
+        json_client(sys::StreamT& istream, sys::StreamT& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
+            : protocol_base(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
               nextid_(1) {
         }
 
@@ -474,7 +478,7 @@ namespace rdl {
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
                 if (last_err == ERROR_OK) {
-                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id);
+                    last_err = protocol_base::deserialize_reply(msg, msgsize, msg_id);
                 }
                 if (last_err != ERROR_OK) {
                     if (last_err == ERROR_JSON_NO_REPLY) {
@@ -522,7 +526,7 @@ namespace rdl {
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
                 if (last_err == ERROR_OK) {
-                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id, ret);
+                    last_err = protocol_base::deserialize_reply(msg, msgsize, msg_id, ret);
                 }
                 if (last_err != ERROR_OK) {
                     if (last_err == ERROR_JSON_NO_REPLY) {
@@ -636,12 +640,12 @@ namespace rdl {
 
     #endif
 
-        using BaseT::istream_;
-        using BaseT::ostream_;
-        using BaseT::buffer_;
-        using BaseT::timeout_ms_;
-        using BaseT::retry_delay_ms_;
-        using BaseT::logger_;
+        using protocol_base::istream_;
+        using protocol_base::ostream_;
+        using protocol_base::buffer_;
+        using protocol_base::timeout_ms_;
+        using protocol_base::retry_delay_ms_;
+        using protocol_base::logger_;
         long nextid_;
         uint8_t buffer_data_[BUFSIZE];
     };

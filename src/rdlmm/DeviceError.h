@@ -3,6 +3,7 @@
 #ifndef __DEVICEERROR_H__
     #define __DEVICEERROR_H__
 
+    #include "../rdl/JsonError.h"
     #include "../rdl/sys_StringT.h"
     #define NOMINMAX
     #include <DeviceBase.h>
@@ -14,56 +15,128 @@
 namespace rdlmm {
 
     /** Common errors */
-    #define ERR_UNKNOWN_POSITION 101
-    #define ERR_INITIALIZE_FAILED 102
-    #define ERR_WRITE_FAILED 103
-    #define ERR_CLOSE_FAILED 104
-    #define ERR_FIRMWARE_NOT_FOUND 105
-    #define ERR_PORT_OPEN_FAILED 106
-    #define ERR_COMMUNICATION 107
-    #define ERR_NO_PORT_SET 108
-    #define ERR_VERSION_MISMATCH 109
+    constexpr int ERR_UNKNOWN_POSITION   = 101;
+    constexpr int ERR_INITIALIZE_FAILED  = 102;
+    constexpr int ERR_WRITE_FAILED       = 103;
+    constexpr int ERR_CLOSE_FAILED       = 104;
+    constexpr int ERR_FIRMWARE_NOT_FOUND = 105;
+    constexpr int ERR_PORT_OPEN_FAILED   = 106;
+    constexpr int ERR_COMMUNICATION      = 107;
+    constexpr int ERR_NO_PORT_SET        = 108;
+    constexpr int ERR_VERSION_MISMATCH   = 109;
+    // Devices should define custom error codes after this
+    constexpr int COMMON_ERR_MAXCODE = ERR_VERSION_MISMATCH;
 
-    #define COMMON_ERR_MAXCODE ERR_VERSION_MISMATCH
-
+    namespace svc {
+        template <class DeviceT>
+        struct deverr_accessor : public DeviceT {
+            static void SetErrorText(DeviceT* target, int errorCode, const char* text) {
+                void (DeviceT::*fn)(int, const char*) = &DeviceT::SetErrorText;
+                (target->*fn)(errorCode, text);
+            }
+        };
+    }
     /** 
     * Initialize common error codes on a device. 
     * 
-    * Unfortunately, CDeviceBase::SetErrorText is protected in DeviceBase.h, so we cannot use it directly. 
-    * Instead, we can rely on C++11 lambda functions!
+    * CDeviceBase::SetErrorText is protected in DeviceBase.h, so we cannot use it directly. 
+    * We define a private accessor class to access it.
     *
-    * An example usage in a MM::Device constructor would look like this
-    *
-    * @code{.cpp}
-    * MyDevice::MyDevice() : initialized_(false) {
-    *    InitializeDefaultErrorMessages();
-    *    initCommonErrors("Arduino", 
-    *	    g_Min_MMVersion, 
-    *	    [this](int err, const char* txt) { 
-    *		    SetErrorText(err, txt); 
-    *	    });
-    *    ...
-    * }
-    * @endcode
-    *
-    * @see [C++11 Lambda Functions](http://en.cppreference.com/w/cpp/language/lambda) 
-    * for detailed notes on the [this] capture list semantics
-    * 
+    * @tparam DeviceT   class of hub device
+    * @param hub        hub device to use
     * @param remoteName	name of the remote device (such as "Arduino")
     * @param minFirmwareVersion	minimum compatible firmware version for the remote device
-    * @param setErrorText C++11 lambda function that sets an error for this device
     */
-    inline void initCommonErrors(const char* remoteName, long minFirmwareVersion, std::function<void(int, const char*)> setErrorText) {
-        using namespace std;
-        setErrorText(ERR_UNKNOWN_POSITION, "Requested position not available in this device");
-        setErrorText(ERR_INITIALIZE_FAILED, "Initialization of the device failed");
-        setErrorText(ERR_WRITE_FAILED, "Failed to write data to the device");
-        setErrorText(ERR_CLOSE_FAILED, "Failed closing the device");
-        setErrorText(ERR_FIRMWARE_NOT_FOUND, (string("Did not find the ") + remoteName + " with the correct firmware.  Is it connected to this serial port?").c_str());
-        setErrorText(ERR_PORT_OPEN_FAILED, (string("Failed opening the ") + remoteName + " USB device").c_str());
-        setErrorText(ERR_COMMUNICATION, (string("Problem communicating with the ") + remoteName).c_str());
-        setErrorText(ERR_NO_PORT_SET, (string("Hub Device not found. The ") + remoteName + " Hub device is needed to create this device").c_str());
-        setErrorText(ERR_VERSION_MISMATCH, (string("The firmware version on the ") + remoteName + " is not compatible with this adapter. Please use firmware version >= " + std::to_string(minFirmwareVersion)).c_str());
+    template <class DeviceT>
+    inline void InitCommonErrors(DeviceT* hub, const char* remoteName, long minFirmwareVersion) {
+        using namespace sys;
+        using namespace rdl;
+        using namespace svc;
+        using acc = deverr_accessor<DeviceT>;
+        acc::SetErrorText(
+            hub, ERR_UNKNOWN_POSITION,
+            "Requested position not available in this device");
+        acc::SetErrorText(
+            hub, ERR_INITIALIZE_FAILED,
+            "Initialization of the device failed");
+        acc::SetErrorText(
+            hub, ERR_WRITE_FAILED,
+            "Failed to write data to the device");
+        acc::SetErrorText(
+            hub, ERR_CLOSE_FAILED,
+            "Failed closing the device");
+        acc::SetErrorText(
+            hub, ERR_FIRMWARE_NOT_FOUND,
+            (StringT("Did not find the ") + remoteName + " with the correct firmware.  Is it connected to this serial port_impl?").c_str());
+        acc::SetErrorText(
+            hub, ERR_PORT_OPEN_FAILED,
+            (StringT("Failed opening the ") + remoteName + " USB device").c_str());
+        acc::SetErrorText(
+            hub, ERR_COMMUNICATION,
+            (StringT("Problem communicating with the ") + remoteName).c_str());
+        acc::SetErrorText(
+            hub, ERR_NO_PORT_SET,
+            (StringT("Hub Device not found. The ") + remoteName + " Hub device is needed to create this device").c_str());
+        acc::SetErrorText(
+            hub, ERR_VERSION_MISMATCH,
+            (StringT("The firmware version on the ") + remoteName + " is not compatible with this adapter. Please use firmware version >= " + std::to_string(minFirmwareVersion)).c_str());
+
+        acc::SetErrorText(
+            hub, ERROR_JSON_PARSE_ERROR,
+            "JSON parse error");
+        acc::SetErrorText(
+            hub, ERROR_JSON_INVALID_REQUEST,
+            "JSON invalid request");
+        acc::SetErrorText(
+            hub, ERROR_JSON_METHOD_NOT_FOUND,
+            "JSON method not found");
+        acc::SetErrorText(
+            hub, ERROR_JSON_INVALID_PARAMS,
+            "JSON invalid parameters");
+        acc::SetErrorText(
+            hub, ERROR_JSON_INTERNAL_ERROR,
+            "JSON internal error");
+
+        acc::SetErrorText(
+            hub, ERROR_JSON_RET_NOT_SET,
+            "JSON Return not set");
+        acc::SetErrorText(
+            hub, ERROR_JSON_ENCODING_ERROR,
+            "JSON encoding error");
+        acc::SetErrorText(
+            hub, ERROR_JSON_SEND_ERROR,
+            "JSON send error");
+        acc::SetErrorText(
+            hub, ERROR_JSON_TIMEOUT,
+            "JSON timout");
+        acc::SetErrorText(
+            hub, ERROR_JSON_NO_REPLY,
+            "JSON no reply");
+        acc::SetErrorText(
+            hub, ERROR_JSON_INVALID_REPLY,
+            "JSON invalid reply");
+        acc::SetErrorText(
+            hub, ERROR_SLIP_ENCODING_ERROR,
+            "SLIP encoding error");
+        acc::SetErrorText(
+            hub, ERROR_SLIP_DECODING_ERROR,
+            "SLIP decoding error");
+
+        acc::SetErrorText(
+            hub, ERROR_JSON_DESER_EMPTY_INPUT,
+            "JSON deserialize empty input");
+        acc::SetErrorText(
+            hub, ERROR_JSON_DESER_INCOMPLETE_INPUT,
+            "JSON deserialize incomplete input");
+        acc::SetErrorText(
+            hub, ERROR_JSON_DESER_INVALID_INPUT,
+            "JSON deserialize invalid input");
+        acc::SetErrorText(
+            hub, ERROR_JSON_DESER_NO_MEMORY,
+            "JSON deserialize no memory");
+        acc::SetErrorText(
+            hub, ERROR_JSON_DESER_TOO_DEEP,
+            "JSON deserialize too deep");
     }
 
     /**
@@ -82,8 +155,8 @@ namespace rdlmm {
         DeviceResultException(int error, const char* file, int line)
             : error(error), file(file), line(line) {}
 
-        template <typename DEV>
-        inline sys::StringT format(const DEV* device) {
+        template <typename DeviceT>
+        inline sys::StringT format(const DeviceT* device) {
             char text[MM::MaxStrLength];
             std::stringstream os;
             os << file << "(" << line << "): ";
@@ -120,8 +193,8 @@ namespace rdlmm {
 
     #ifndef ASSERT_TRUE
         // Must be macro to get __FILE__ and __LINE__
-        #define ASSERT_TRUE(COND, ERROR)                        \
-            if (!(COND)) {                                      \
+        #define ASSERT_TRUE(COND, ERROR)                          \
+            if (!(COND)) {                                        \
                 rdlmm::assertResult((ERROR), __FILE__, __LINE__); \
             }
 

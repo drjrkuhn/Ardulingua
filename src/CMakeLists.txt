@@ -7,8 +7,9 @@ add_library(${CORELIB_NAME} INTERFACE
     Ardulingua.h
     rdl/Common.h
     rdl/Delegate.h 
-    rdl/Jsondelegate.h 
+    rdl/JsonDelegate.h 
     rdl/JsonDispatch.h 
+    rdl/JsonError.h
     rdl/Logger.h 
     rdl/ServerProperty.h
     rdl/SlipInPlace.h 

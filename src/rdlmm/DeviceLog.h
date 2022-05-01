@@ -6,12 +6,12 @@
     #include "../rdl/sys_PrintT.h"
     #include "../rdl/sys_StringT.h"
     #include <iomanip>
-    #include <sstream>
     #include <limits.h> // for INT_MAX
+    #include <sstream>
 
 namespace rdlmm {
 
-   template <class DeviceT>
+    template <class DeviceT>
     class DeviceLog_Print : public sys::PrintT {
      public:
         DeviceLog_Print() : device_(nullptr), debug_only_(true) {}
@@ -45,16 +45,16 @@ namespace rdlmm {
      protected:
         // accessor for protected CDeviceBase log method
         struct accessor : DeviceT {
-            static int callLogMessage(DeviceT* target, sys::StringT msg, bool debug_only) {
+            static int LogMessage(DeviceT* target, sys::StringT msg, bool debug_only = false) {
                 int (DeviceT::*fn)(const sys::StringT&, bool) const = &DeviceT::LogMessage;
                 return (target->*fn)(msg, debug_only);
             }
-            static int callLogMessage(DeviceT* target, const char* msg, bool debug_only) {
+            static int LogMessage(DeviceT* target, const char* msg, bool debug_only = false) {
                 int (DeviceT::*fn)(const char*, bool) const = &DeviceT::LogMessage;
                 return (target->*fn)(msg, debug_only);
             }
         };
- 
+
         void clear() {
             // clear the stringstream buffer
             ss_.str("");
@@ -71,17 +71,17 @@ namespace rdlmm {
                 size_t start = sstr.find_first_not_of(WHITESPACE);
                 if (start == std::string::npos)
                     start = 0;
-                size_t end   = sstr.find_last_not_of(WHITESPACE);
+                size_t end = sstr.find_last_not_of(WHITESPACE);
                 if (end == std::string::npos) {
                     clear();
                     return;
                 }
-                sstr = sstr.substr(start, end+1);
+                sstr = sstr.substr(start, end + 1);
                 if (sstr.length() == 0) {
                     clear();
                     return;
                 }
-                accessor::callLogMessage(device_, sstr.c_str(), debug_only_);
+                accessor::LogMessage(device_, sstr.c_str(), debug_only_);
                 clear();
             }
         }

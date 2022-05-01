@@ -207,7 +207,7 @@ namespace rdlmm {
     /** assign mm floating point from MM::Property */
     template <typename T, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
     inline int Assign(T& value, const MM::PropertyBase& prop) {
-        long temp;
+        double temp;
         if (!prop.Get(temp))
             return DEVICE_INVALID_PROPERTY_VALUE;
         value = static_cast<T>(temp);
@@ -225,14 +225,14 @@ namespace rdlmm {
     *******************************************************************/
 
     /**
-    * Set a property by name for a given typename T on a given device DEV.
+    * Set a property by name for a given typename T on a given device DeviceT.
     * 
     * Devices can only set a property by name and a string value.
     * This method marshals the property value to a string and
-    * calls the DEV->SetProperty(propname, stringvalue).
+    * calls the DeviceT->SetProperty(propname, stringvalue).
 	*/
-    template <typename T, class DEV, typename std::enable_if<is_mm_rvalue<T>::value, bool>::type = true>
-    inline int Assign(DEV* device, const char* propName, const T& value) {
+    template <typename T, class DeviceT, typename std::enable_if<is_mm_rvalue<T>::value, bool>::type = true>
+    inline int Assign(DeviceT* device, const char* propName, const T& value) {
         return device->SetProperty(propName, ToString<T>(value).c_str()) ? DEVICE_OK : DEVICE_INVALID_PROPERTY_VALUE;
     }
 
@@ -241,13 +241,13 @@ namespace rdlmm {
     *******************************************************************/
 
     /**
-    * Get a property by name for a given typename T on a given device DEV.
+    * Get a property by name for a given typename T on a given device DeviceT.
     * 
     * Devices can get properties by value. These methods marshal the
 	* type T to the proper device->GetProperty(name, val) call.
 	*/
-    template <typename T, class DEV, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
-    inline int Assign(T& value, DEV* device, const char* propName) {
+    template <typename T, class DeviceT, typename std::enable_if<is_mm_integral<T>::value, bool>::type = true>
+    inline int Assign(T& value, DeviceT* device, const char* propName) {
         long temp;
         int ret;
         if ((ret = device->GetProperty(propName, temp)) != DEVICE_OK) {
@@ -258,12 +258,12 @@ namespace rdlmm {
     }
 
     /**
-    * Get a property by name for a given typename T on a given device DEV.
+    * Get a property by name for a given typename T on a given device DeviceT.
 	* Devices can get properties by value. These methods marshal the
 	* type T to the proper device->GetProperty(name, val) call.
 	*/
-    template <typename T, class DEV, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
-    inline int Assign(T& value, DEV* device, const char* propName) {
+    template <typename T, class DeviceT, typename std::enable_if<is_mm_floating_point<T>::value, bool>::type = true>
+    inline int Assign(T& value, DeviceT* device, const char* propName) {
         double temp;
         int ret;
         if ((ret = device->GetProperty(propName, temp)) != DEVICE_OK) {
@@ -274,7 +274,7 @@ namespace rdlmm {
     }
 
     /**
-    * Get a string property by name for a given typename T on a given device DEV.
+    * Get a string property by name for a given typename T on a given device DeviceT.
     *
     * Getting string device properties is a little unsafe in Micromanager. You can
 	* only get one by passing a char* buffer to the GetProperty method. This means
@@ -283,8 +283,8 @@ namespace rdlmm {
 	* free memory (instead of the stack), get the property, then copy the buffer to 
 	* a string and free the buffer.
 	*/
-    template <typename T, class DEV, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
-    inline int Assign(T& value, DEV* device, const char* propName) {
+    template <typename T, class DeviceT, typename std::enable_if<is_mm_string<T>::value, bool>::type = true>
+    inline int Assign(T& value, DeviceT* device, const char* propName) {
         char* resBuf = new char[MM::MaxStrLength];
         int ret      = device->GetProperty(propName, resBuf);
         if (ret == DEVICE_OK) {

@@ -49,8 +49,15 @@ namespace sys {
         str.concat(c);
         return str;
     }
-
     __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(c); }
+
+    __ALWAYS_INLINE__ StringT to_string(int value) { return StringT(value, (unsigned char)DEC); }
+    __ALWAYS_INLINE__ StringT to_string(long value) { return StringT(value, (unsigned char)DEC); }
+    __ALWAYS_INLINE__ StringT to_string(unsigned value) { return StringT(value, (unsigned char)DEC); }
+    __ALWAYS_INLINE__ StringT to_string(unsigned long value) { return StringT(value, (unsigned char)DEC); }
+    __ALWAYS_INLINE__ StringT to_string(float value) { return StringT(value, (unsigned char)4); }
+    __ALWAYS_INLINE__ StringT to_string(double value) { return StringT(value, (unsigned char)4); }
+
 }
 
     #else // NOT ARDUINO
@@ -62,6 +69,16 @@ namespace sys {
     // No single-argument char to string constructor or append. It is always (count, char)
     __ALWAYS_INLINE__ StringT& append(StringT& str, const char c) { return str.append(1, c); }
     __ALWAYS_INLINE__ StringT StringT_from(const char c) { return StringT(1, c); }
+
+    __ALWAYS_INLINE__ StringT to_string(int value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(long value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(long long value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(unsigned value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(unsigned long value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(unsigned long long value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(float value) { return std::to_string(value); }
+    __ALWAYS_INLINE__ StringT to_string(double value) { return std::to_string(value); }
+
 }
     #endif // NOT ARDUINO
 

@@ -18,33 +18,12 @@
     #define __JSONDELEGATE_H__
 
     #include "Delegate.h"
+    #include "JsonError.h"
     #include "std_utility.h"
     #include <ArduinoJson.h>
 
 namespace rdl {
 
-    constexpr int ERROR_OK                    = 0;
-    constexpr int ERROR_JSON_PARSE_ERROR      = -32700;
-    constexpr int ERROR_JSON_INVALID_REQUEST  = -32600;
-    constexpr int ERROR_JSON_METHOD_NOT_FOUND = -32601;
-    constexpr int ERROR_JSON_INVALID_PARAMS   = -32602;
-    constexpr int ERROR_JSON_INTERNAL_ERROR   = -32603;
-
-    constexpr int ERROR_JSON_RET_NOT_SET    = -32000;
-    constexpr int ERROR_JSON_ENCODING_ERROR = -32001;
-    constexpr int ERROR_JSON_SEND_ERROR     = -32002;
-    constexpr int ERROR_JSON_TIMEOUT        = -32003;
-    constexpr int ERROR_JSON_NO_REPLY       = -32004;
-    constexpr int ERROR_JSON_INVALID_REPLY  = -32005;
-    constexpr int ERROR_SLIP_ENCODING_ERROR = -32006;
-    constexpr int ERROR_SLIP_DECODING_ERROR = -32007;
-
-    constexpr int ERROR_JSON_DESER_ERROR_0          = -32090;
-    constexpr int ERROR_JSON_DESER_EMPTY_INPUT      = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::EmptyInput;
-    constexpr int ERROR_JSON_DESER_INCOMPLETE_INPUT = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::IncompleteInput;
-    constexpr int ERROR_JSON_DESER_INVALID_INPUT    = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::InvalidInput;
-    constexpr int ERROR_JSON_DESER_NO_MEMORY        = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::NoMemory;
-    constexpr int ERROR_JSON_DESER_TOO_DEEP         = ERROR_JSON_DESER_ERROR_0 - ArduinoJson::DeserializationError::TooDeep;
 
     /************************************************************************
      * Json stubs with type erased
@@ -202,6 +181,8 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...), size_t... I>
         inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // SerialUSB1.print("void method_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             C* p = static_cast<C*>(this_ptr);
             (p->*TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -209,6 +190,8 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...), size_t... I>
         inline static int method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // SerialUSB1.print("not-void method_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             C* p = static_cast<C*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
@@ -226,6 +209,8 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...) const, size_t... I>
         inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // SerialUSB1.print("void const_method_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             C* const p = static_cast<C*>(this_ptr);
             (p->*TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -233,6 +218,8 @@ namespace rdl {
 
         template <class C, RTYPE (C::*TMethod)(PARAMS...) const, size_t... I>
         inline static int const_method_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // SerialUSB1.print("not-void const_method_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             C* const p = static_cast<C*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->*TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
@@ -250,12 +237,16 @@ namespace rdl {
 
         template <RTYPE (*TMethod)(PARAMS...), size_t... I>
         inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // SerialUSB1.print("void function_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             (TMethod)(args[I].as<PARAMS>()...);
             return ERROR_OK;
         }
 
         template <RTYPE (*TMethod)(PARAMS...), size_t... I>
         inline static int function_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // SerialUSB1.print("not-void function_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             if (ret.set(static_cast<RTYPE>((TMethod)(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
             else
@@ -274,6 +265,8 @@ namespace rdl {
 
         template <typename LAMBDA, size_t... I>
         inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_is_void) {
+            // SerialUSB1.print("void lambda_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
             (p->operator())(args[I].as<PARAMS>()...);
             return ERROR_OK;
@@ -281,6 +274,8 @@ namespace rdl {
 
         template <typename LAMBDA, size_t... I>
         inline static int lambda_jsonstub_impl(void* this_ptr, JsonArray& args, JsonVariant& ret, std::index_sequence<I...>, svc::ret_not_void) {
+            // SerialUSB1.print("not-void lambda_jsonstub_impl #param ");
+            // SerialUSB1.println(sizeof...(I));
             LAMBDA* p = static_cast<LAMBDA*>(this_ptr);
             if (ret.set(static_cast<RTYPE>((p->operator())(args[I].as<PARAMS>()...))))
                 return ERROR_OK;
