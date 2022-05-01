@@ -62,8 +62,11 @@ namespace rdl {
 
         sys::StringT message(const char opcode) { return opcode + brief_; }
 
-        void logger(sys::PrintT* logger) {
+        virtual void logger(sys::PrintT* logger) {
             logger_ = logger;
+            if (logger_) {
+                logger_->println(sys::StringT("logging property ") + brief_);
+            }
         }
 
      protected:
@@ -139,19 +142,20 @@ namespace rdl {
      * @tparam T        property value type
      * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, long MAX_SEQ_SIZE, bool READONLY = false>
+    template <typename T, long MAX_SEQ_SIZE>
     class simple_prop_base : public prop_any_base<T> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T>;
-        using ThisT = simple_prop_base<T, MAX_SEQ_SIZE, READONLY>;
-        using typename BaseT::RootT; // used for dispatch map creation
+        using ThisT = simple_prop_base<T, MAX_SEQ_SIZE>;
+        using RootT = BaseT; // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
+        using BaseT::logger;
 
-        simple_prop_base(const sys::StringT& brief_name, const T initial, bool sequencable = false)
+        simple_prop_base(const sys::StringT& brief_name, const T initial, bool sequencable = false, bool read_only = false)
             : BaseT(brief_name),
-              value_(initial), sequencable_(sequencable), max_size_(MAX_SEQ_SIZE),
+              value_(initial), sequencable_(sequencable), read_only_(read_only), max_size_(MAX_SEQ_SIZE),
               next_index_(0), size_(0), started_(false) {
         }
 
@@ -198,12 +202,13 @@ namespace rdl {
             return sequencable_;
         }
         virtual bool read_only() const override {
-            return READONLY;
+            return read_only_;
         }
 
      protected:
         T value_;
         bool sequencable_;
+        bool read_only_;
         const long max_size_;
         volatile long next_index_;
         long size_;
@@ -230,9 +235,10 @@ namespace rdl {
         using BaseT = prop_any_base<T, int>;
         using ThisT = channel_prop_base<T, MAX_CHANNELS>;
         using ChanT = prop_any_base<T>; // MAX_SEQ_SIZE doesn't matter for the reference
-        using typename BaseT::RootT;    // used for dispatch map creation
-        using BaseT::logger_;
+        using RooT = BaseT;    // used for dispatch map creation
         using BaseT::brief_;
+        using BaseT::logger_;
+        using BaseT::logger;
 
         channel_prop_base(const sys::StringT& brief_name)
             : BaseT(brief_name), num_channels_(0) {
@@ -257,10 +263,13 @@ namespace rdl {
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get(int chan) const override {
+            if (logger_) {
+                logger_->println(brief_ + " chan prop get[" + sys::to_string(chan) + "]" + " num_channels_: " + sys::to_string(num_channels_));
+            }
             if (chan >= 0 && chan < num_channels_) {
                 T value = channels_[chan]->get();
                 if (logger_) {
-                    logger_->println(brief_ + " chan prop get[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(value));
+                    logger_->println(sys::StringT(" -> " )+ sys::to_string(value));
                 }
                 return value;
             } else {
@@ -268,10 +277,11 @@ namespace rdl {
             }
         }
         virtual void set(const T value, int chan) override {
+            if (logger_) {
+                logger_->print(brief_ + " chan prop set[" + sys::to_string(chan) + "]" + " = " + sys::to_string(value));
+                logger_->println(" num_channels_: " + sys::to_string(num_channels_));
+            }
             if (chan >= 0 && chan < num_channels_) {
-                if (logger_) {
-                    logger_->println(brief_ + " chan prop set[" + sys::to_string(chan) + "]" + " = " + sys::to_string(value));
-                }
                 channels_[chan]->set(value);
             }
         }
@@ -327,14 +337,14 @@ namespace rdl {
         virtual void start(int chan) override {
             if (chan < 0) {
                 if (logger_) {
-                    logger_->println(brief_ + " chan prop start[" + sys::to_string(chan) + "]");
+                    logger_->println(brief_ + " chan prop start[all]");
                 }
                 for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->start();
                 }
             } else if (chan < num_channels_) {
                 if (logger_) {
-                    logger_->println(brief_ + " chan prop start[all]");
+                    logger_->println(brief_ + " chan prop start[" + sys::to_string(chan) + "]");
                 }
                 channels_[chan]->start();
             }
@@ -342,14 +352,14 @@ namespace rdl {
         virtual void stop(int chan) override {
             if (chan < 0) {
                 if (logger_) {
-                    logger_->println(brief_ + " chan prop stop[" + sys::to_string(chan) + "]");
+                    logger_->println(brief_ + " chan prop stop[all]");
                 }
                 for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->stop();
                 }
             } else if (chan < num_channels_) {
                 if (logger_) {
-                    logger_->println(brief_ + " chan prop stop[all]");
+                    logger_->println(brief_ + " chan prop stop[" + sys::to_string(chan) + "]");
                 }
                 channels_[chan]->stop();
             }
@@ -365,8 +375,7 @@ namespace rdl {
                         break;
                     }
                 }
-            }
-            if (chan < num_channels_) {
+            } else if (chan < num_channels_) {
                 seqable = channels_[chan]->sequencable();
             }
             if (logger_) {
@@ -375,18 +384,17 @@ namespace rdl {
             return seqable;
         }
 
-        /** call with chan < 0 to check if any channels are read_only  */
+        /** call with chan < 0 to check if any channel is read_only  */
         virtual bool read_only(int chan) const override {
             bool ronly = false;
             if (chan < 0) { // check all channels
                 for (int i = 0; i < num_channels_; i++) {
-                    if (!channels_[i]->read_only()) {
+                    if (channels_[i]->read_only()) {
                         ronly = true;
                         break;
                     }
                 }
-            }
-            if (chan < num_channels_) {
+            } else if (chan < num_channels_) {
                 ronly = channels_[chan]->read_only();
             }
             if (logger_) {

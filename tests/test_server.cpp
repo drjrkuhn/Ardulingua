@@ -34,12 +34,16 @@ using simple_prop = simple_prop_base<T, 64>;
 template <typename T>
 using channel_prop = channel_prop_base<T, 10>;
 
-simple_prop<int> foo("foo", 1);
-simple_prop<float> barA("barA", 1.0);
-simple_prop<float> barB("barB", 2.0);
-simple_prop<float> barC("barC", 3.0);
+rdl::simple_prop_base<int,32> foo("foo", 1, true);
 
-channel_prop<float> bars("bar");
+rdl::simple_prop_base<double,32> bar0("bar0", 1.1f, true);
+rdl::simple_prop_base<double,32> bar1("bar1", 2.2f, true);
+rdl::simple_prop_base<double,32> bar2("bar2", 3.3f, true);
+rdl::simple_prop_base<double,32> bar3("bar3", 4.4f, true);
+
+decltype(bar0)::RootT* all_bars[] = {&bar0, &bar1, &bar2, &bar3};
+
+rdl::channel_prop_base<double, 4> bars("bar", all_bars, 4);
 
 
 // std::stringstream ss_toserver;
@@ -63,17 +67,23 @@ ServerT server(toserver, fromserver, dispatch_map);
 
 int setup_server() {
     server.logger(&serverlogger);
+    foo.logger(&serverlogger);
+    bar0.logger(&serverlogger);
+    bar1.logger(&serverlogger);
+    bar2.logger(&serverlogger);
+    bar3.logger(&serverlogger);
+    bars.logger(&serverlogger);
 
-#if 1
-    // add as list
-    decltype(barA)::RootT* barlist[3] = {&barA, &barB, &barC};
-    bars.add(barlist, 3);
-#else
-    // add individually
-    bars.add(&barA);
-    bars.add(&barB);
-    bars.add(&barC);
-#endif
+// #if 1
+//     // add as list
+//     decltype(barA)::RootT* barlist[3] = {&barA, &barB, &barC};
+//     bars.add(barlist, 3);
+// #else
+//     // add individually
+//     bars.add(&barA);
+//     bars.add(&barB);
+//     bars.add(&barC);
+// #endif
 
     add_to<MapT,decltype(foo)::RootT>(dispatch_map, foo, foo.sequencable(), foo.read_only());
     add_to<MapT,decltype(bars)::RootT>(dispatch_map, bars, bars.sequencable(-1), bars.read_only(-1));
@@ -140,7 +150,7 @@ int main() {
     client.call_get("^bar", numbars, -1);
     cout << "sizeof(bar) = " << numbars << endl;
 
-    float barval;
+    double barval;
     for (int i=0; i<numbars; i++) {
         client.call_get("?bar", barval, i);
         cout << "bar[" << i << "] = " << barval << endl;
