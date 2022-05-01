@@ -7,6 +7,8 @@
     #include "sys_PrintT.h"
     #include "sys_StringT.h"
 
+    #define SERVERPROP_LOGGING  0
+
 namespace rdl {
 
     /************************************************************************
@@ -64,9 +66,11 @@ namespace rdl {
 
         virtual void logger(sys::PrintT* logger) {
             logger_ = logger;
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(sys::StringT("logging property ") + brief_);
             }
+#endif
         }
 
      protected:
@@ -161,15 +165,19 @@ namespace rdl {
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get() const override {
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(brief_ + " simple prop get -> " + sys::to_string(value_));
             }
+#endif
             return value_;
         }
         virtual void set(const T value) override {
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(brief_ + " simple prop set = " + sys::to_string(value));
             }
+#endif
             value_ = value;
         }
         virtual long max_size() const override {
@@ -263,24 +271,30 @@ namespace rdl {
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get(int chan) const override {
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(brief_ + " chan prop get[" + sys::to_string(chan) + "]" + " num_channels_: " + sys::to_string(num_channels_));
             }
+#endif
             if (chan >= 0 && chan < num_channels_) {
                 T value = channels_[chan]->get();
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(sys::StringT(" -> " )+ sys::to_string(value));
                 }
+#endif
                 return value;
             } else {
                 return T();
             }
         }
         virtual void set(const T value, int chan) override {
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->print(brief_ + " chan prop set[" + sys::to_string(chan) + "]" + " = " + sys::to_string(value));
                 logger_->println(" num_channels_: " + sys::to_string(num_channels_));
             }
+#endif
             if (chan >= 0 && chan < num_channels_) {
                 channels_[chan]->set(value);
             }
@@ -291,15 +305,19 @@ namespace rdl {
          */
         virtual long max_size(int chan) const override {
             if (chan < 0) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop max_size[all] -> " + sys::to_string(num_channels_));
                 }
+#endif
                 return num_channels_;
             } else if (chan < num_channels_) {
                 long size = channels_[chan]->max_size();
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop max_size[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(size));
                 }
+#endif
                 return size;
             } else {
                 return 0;
@@ -308,9 +326,11 @@ namespace rdl {
         virtual long size(int chan) const override {
             if (chan >= 0 && chan < num_channels_) {
                 long size = channels_[chan]->size();
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop size[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(size));
                 }
+#endif
                 return size;
             } else {
                 return 0;
@@ -318,9 +338,11 @@ namespace rdl {
         }
         virtual long clear(int chan) override {
             if (chan >= 0 && chan < num_channels_) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop clear[" + sys::to_string(chan) + "]");
                 }
+#endif
                 return channels_[chan]->clear();
             } else {
                 return 0;
@@ -328,39 +350,49 @@ namespace rdl {
         }
         virtual void add(const T value, int chan) override {
             if (chan >= 0 && chan < num_channels_) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop add[" + sys::to_string(chan) + "]" + " -> " + sys::to_string(value));
                 }
+#endif
                 channels_[chan]->add(value);
             }
         }
         virtual void start(int chan) override {
             if (chan < 0) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop start[all]");
                 }
+#endif
                 for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->start();
                 }
             } else if (chan < num_channels_) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop start[" + sys::to_string(chan) + "]");
                 }
+#endif
                 channels_[chan]->start();
             }
         }
         virtual void stop(int chan) override {
             if (chan < 0) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop stop[all]");
                 }
+#endif
                 for (int i = 0; i < num_channels_; i++) {
                     channels_[i]->stop();
                 }
             } else if (chan < num_channels_) {
+#if SERVERPROP_LOGGING
                 if (logger_) {
                     logger_->println(brief_ + " chan prop stop[" + sys::to_string(chan) + "]");
                 }
+#endif
                 channels_[chan]->stop();
             }
         }
@@ -378,9 +410,11 @@ namespace rdl {
             } else if (chan < num_channels_) {
                 seqable = channels_[chan]->sequencable();
             }
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(brief_ + " chan prop sequencable[" + sys::to_string(chan) + "]" + " -> " + (seqable ? "true":"false"));
             }
+#endif
             return seqable;
         }
 
@@ -397,9 +431,11 @@ namespace rdl {
             } else if (chan < num_channels_) {
                 ronly = channels_[chan]->read_only();
             }
+#if SERVERPROP_LOGGING
             if (logger_) {
                 logger_->println(brief_ + " chan prop read_only[" + sys::to_string(chan) + "]" + " -> " + (ronly ? "true":"false"));
             }
+#endif
             return ronly;
         }
 
