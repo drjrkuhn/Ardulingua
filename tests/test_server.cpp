@@ -52,8 +52,8 @@ rdl::channel_prop_base<double, 4> bars("bar", all_bars, 4);
 sys::Stream_StringT toserver;
 sys::Stream_StringT fromserver;
 
-using ServerT = json_server<MapT, 512>;
-using ClientT = json_client<512>;
+using ServerT = json_server<MapT, jsonrpc_default_keys, 512>;
+using ClientT = json_client<jsonrpc_default_keys, 512>;
 
 ////////// SERVER CODE /////////////
 

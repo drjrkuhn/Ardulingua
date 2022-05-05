@@ -3,23 +3,23 @@
 #ifndef __JSONDISPATCH_H__
     #define __JSONDISPATCH_H__
 
-    #include "sys_StringT.h"
+    #include "JsonDelegate.h"
+    #include "JsonError.h"
+    #include "Logger.h"
+    #include "SlipInPlace.h"
+    #include "std_utility.h"
     #include "sys_PrintT.h"
     #include "sys_StreamT.h"
-    #include "JsonError.h"
-    #include "JsonDelegate.h"
-    #include "Logger.h"
-    #include "std_utility.h"
+    #include "sys_StringT.h"
     #include "sys_timing.h"
-    #include "SlipInPlace.h"
     #include <ArduinoJson.h>
     #include <thread>
     #include <unordered_map>
 
     #define JSONRPC_USE_SHORT_KEYS 1
-    // #define JSONRPC_USE_MSGPACK 1
-    // #define JSONRPC_DEBUG_CLIENTSERVER 1
-    // #define JSONRPC_DEBUG_SERVER_DISPATCH 1
+// #define JSONRPC_USE_MSGPACK 1
+// #define JSONRPC_DEBUG_CLIENTSERVER 1
+// #define JSONRPC_DEBUG_SERVER_DISPATCH 1
 
     #define JSONRPC_DEFAULT_TIMEOUT 1000
     #define JSONRPC_DEFAULT_RETRY_DELAY 1
@@ -100,18 +100,26 @@ namespace rdl {
      *
      ***********************************************************************/
 
+    struct jsonrpc_std_keys {
+        static constexpr const char* RK_METHOD = "method";
+        static constexpr const char* RK_PARAMS = "params";
+        static constexpr const char* RK_ID     = "id";
+        static constexpr const char* RK_RESULT = "result";
+        static constexpr const char* RK_ERROR  = "error";
+    };
+
+    struct jsonrpc_short_keys {
+        static constexpr const char* RK_METHOD = "m";
+        static constexpr const char* RK_PARAMS = "p";
+        static constexpr const char* RK_ID     = "i";
+        static constexpr const char* RK_RESULT = "r";
+        static constexpr const char* RK_ERROR  = "e";
+    };
+
     #if JSONRPC_USE_SHORT_KEYS
-    constexpr const char* RK_METHOD = "m";
-    constexpr const char* RK_PARAMS = "p";
-    constexpr const char* RK_ID     = "i";
-    constexpr const char* RK_RESULT = "r";
-    constexpr const char* RK_ERROR  = "e";
+        using jsonrpc_default_keys = jsonrpc_short_keys;
     #else
-    constexpr const char* RK_METHOD = "method";
-    constexpr const char* RK_PARAMS = "params";
-    constexpr const char* RK_ID     = "id";
-    constexpr const char* RK_RESULT = "result";
-    constexpr const char* RK_ERROR  = "error";
+        using jsonrpc_default_keys = jsonrpc_std_keys;
     #endif
 
     #if JSONRPC_USE_MSGPACK
@@ -179,8 +187,17 @@ namespace rdl {
      * PROTOCOL BASE
      ***********************************************************************/
 
+    template <class KeysT>
     class protocol_base {
      public:
+        static constexpr const char* key_method() noexcept { return KeysT::RK_METHOD; }
+        static constexpr const char* key_params() noexcept { return KeysT::RK_PARAMS; }
+        static constexpr const char* key_id() noexcept { return KeysT::RK_ID; }
+        static constexpr const char* key_result() noexcept { return KeysT::RK_RESULT; }
+        static constexpr const char* key_error() noexcept { return KeysT::RK_ERROR; }
+
+
+
         protocol_base(sys::StreamT& istream, sys::StreamT& ostream, uint8_t* buffer_data, size_t buffer_size,
                       unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
                       unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
@@ -189,9 +206,8 @@ namespace rdl {
             retry_delay_ms_ = retry_delay_ms;
         }
 
-
         sys::PrintT* logger() { return logger_; }
-        
+
         sys::PrintT* logger(sys::PrintT* logger) {
             logger_ = logger;
             return logger_;
@@ -216,11 +232,11 @@ namespace rdl {
         int serialize_reply(JsonDocument& msgdoc, size_t& msgsize, const int id, JsonVariant result, int error_code) {
             // serialize the message
             if (error_code != ERROR_OK) {
-                msgdoc[RK_ERROR] = error_code;
+                msgdoc[key_error()] = error_code;
             } else if (!result.isNull()) {
-                msgdoc[RK_RESULT] = result;
+                msgdoc[key_result()] = result;
             }
-            msgdoc[RK_ID] = id;
+            msgdoc[key_id()] = id;
             // serialize the message
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
@@ -237,9 +253,9 @@ namespace rdl {
         int serialize_reply(JsonDocument& msgdoc, size_t& msgsize, const int id, int error_code) {
             // serialize the message
             if (error_code != ERROR_OK) {
-                msgdoc[RK_ERROR] = error_code;
+                msgdoc[key_error()] = error_code;
             }
-            msgdoc[RK_ID] = id;
+            msgdoc[key_id()] = id;
             // serialize the message
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
@@ -262,14 +278,14 @@ namespace rdl {
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
             DCS_BLK(logger_->print(SERVER_COL "\tdeserialized"); println(*logger_, msgdoc));
-            if (!msgdoc.containsKey(RK_METHOD))
+            if (!msgdoc.containsKey(key_method()))
                 return ERROR_JSON_INVALID_REQUEST;
-            method = msgdoc[RK_METHOD].as<sys::StringT>();
-            if (!msgdoc.containsKey(RK_PARAMS))
+            method = msgdoc[key_method()].as<sys::StringT>();
+            if (!msgdoc.containsKey(key_params()))
                 return ERROR_JSON_INVALID_REQUEST;
-            args = msgdoc[RK_PARAMS];
-            if (msgdoc.containsKey(RK_ID))
-                id = msgdoc[RK_ID];
+            args = msgdoc[key_params()];
+            if (msgdoc.containsKey(key_id()))
+                id = msgdoc[key_id()];
             return ERROR_OK;
         }
 
@@ -277,13 +293,13 @@ namespace rdl {
         template <typename... PARAMS>
         int serialize_call(JsonDocument& msgdoc, size_t& msgsize, sys::StringT method, const int id, PARAMS... args) {
             // serialize the message
-            msgdoc[RK_METHOD] = method;
-            JsonArray params  = msgdoc.createNestedArray(RK_PARAMS);
+            msgdoc[key_method()] = method;
+            JsonArray params  = msgdoc.createNestedArray(key_params());
             int err           = toJsonArray(params, args...);
             if (err != ERROR_OK)
                 return err;
             if (id >= 0)
-                msgdoc[RK_ID] = id; // request reply
+                msgdoc[key_id()] = id; // request reply
             // slip-encode message
             msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
             if (msgsize == 0)
@@ -306,7 +322,7 @@ namespace rdl {
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
             DCS_BLK(logger_->print("\tdeserialized"); println(*logger_, msgdoc));
-            JsonVariant jvid = msgdoc[RK_ID];
+            JsonVariant jvid = msgdoc[key_id()];
             // check for reply id
             if (jvid.isNull())
                 return ERROR_JSON_INVALID_REPLY;
@@ -314,13 +330,13 @@ namespace rdl {
             if (reply_id != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check result in reply
-            JsonVariant jvres = msgdoc[RK_RESULT];
+            JsonVariant jvres = msgdoc[key_result()];
             if (!jvid.isNull()) { // received good reply
                 ret = jvres.as<RTYPE>();
                 return ERROR_OK;
             }
             // check for error in reply
-            return msgdoc[RK_ERROR] | ERROR_JSON_INVALID_REPLY;
+            return msgdoc[key_error()] | ERROR_JSON_INVALID_REPLY;
         }
 
         // CLIENT METHOD
@@ -333,16 +349,15 @@ namespace rdl {
             if (derr != DeserializationError::Ok)
                 return ERROR_JSON_DESER_ERROR_0 - derr.code();
             DCS_BLK(logger_->print("\tdeserialized"); println(*logger_, msgdoc));
-            JsonVariant jvid = msgdoc[RK_ID];
+            JsonVariant jvid = msgdoc[key_id()];
             // check for reply id
             if (jvid.isNull() || jvid.as<long>() != msg_id)
                 return ERROR_JSON_INVALID_REPLY;
             // check for error in reply
-            return msgdoc[RK_ERROR] | ERROR_OK;
+            return msgdoc[key_error()] | ERROR_OK;
         }
 
      protected:
-
         static sys::PrintT* no_logger() {
             static Null_Print null_printer;
             return &null_printer;
@@ -359,14 +374,15 @@ namespace rdl {
     /************************************************************************
      * SERVER
      ***********************************************************************/
-    template <class MapT, size_t BUFSIZE>
-    class json_server : public protocol_base {
+    template <class MapT, class KeysT, size_t BUFSIZE>
+    class json_server : public protocol_base<KeysT> {
      public:
-        using protocol_base::logger;
+        using BaseT = protocol_base<KeysT>;
+        using BaseT::logger;
 
         json_server(sys::StreamT& istream, sys::StreamT& ostream, MapT& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : protocol_base(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
+            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
               dispatch_map_(map) {
         }
 
@@ -377,7 +393,7 @@ namespace rdl {
                 return ERROR_OK;
             }
             // read message
-            size_t msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
+            size_t msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
             DCS_BLK(logger_->print(SERVER_COL "SERVER << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
@@ -389,7 +405,7 @@ namespace rdl {
             auto mapit = dispatch_map_.end();
             int id = -1, err = ERROR_OK;
             for (;;) { // "try" clause. Always use break to exit
-                err = protocol_base::deserialize_call(msg, msgsize, method, id, args);
+                err = BaseT::deserialize_call(msg, msgsize, method, id, args);
                 if (err != ERROR_OK) break;
                 mapit = dispatch_map_.find(method);
                 err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
@@ -416,9 +432,9 @@ namespace rdl {
                 sys::yield();
                 msg.clear();
                 if (mapit != dispatch_map_.end() && !mapit->second.returns_void()) {
-                    err = protocol_base::serialize_reply(msg, msgsize, id, result, err);
+                    err = BaseT::serialize_reply(msg, msgsize, id, result, err);
                 } else {
-                    err = protocol_base::serialize_reply(msg, msgsize, id, err);
+                    err = BaseT::serialize_reply(msg, msgsize, id, err);
                 }
                 if (err != ERROR_OK)
                     return err;
@@ -431,12 +447,12 @@ namespace rdl {
         }
 
      protected:
-        using protocol_base::istream_;
-        using protocol_base::ostream_;
-        using protocol_base::buffer_;
-        using protocol_base::timeout_ms_;
-        using protocol_base::retry_delay_ms_;
-        using protocol_base::logger_;
+        using BaseT::istream_;
+        using BaseT::ostream_;
+        using BaseT::buffer_;
+        using BaseT::timeout_ms_;
+        using BaseT::retry_delay_ms_;
+        using BaseT::logger_;
         MapT& dispatch_map_;
         uint8_t buffer_data_[BUFSIZE];
     };
@@ -444,14 +460,15 @@ namespace rdl {
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <size_t BUFSIZE>
-    class json_client : protocol_base {
+    template <class KeysT, size_t BUFSIZE>
+    class json_client : protocol_base<KeysT> {
      public:
-        using protocol_base::logger;
+        using BaseT = protocol_base<KeysT>;
+        using BaseT::logger;
 
         json_client(sys::StreamT& istream, sys::StreamT& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : protocol_base(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
+            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
               nextid_(1) {
         }
 
@@ -478,7 +495,7 @@ namespace rdl {
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
                 if (last_err == ERROR_OK) {
-                    last_err = protocol_base::deserialize_reply(msg, msgsize, msg_id);
+                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id);
                 }
                 if (last_err != ERROR_OK) {
                     if (last_err == ERROR_JSON_NO_REPLY) {
@@ -526,7 +543,7 @@ namespace rdl {
                 StaticJsonDocument<svc::JDOC_SIZE> msg;
                 last_err = read_reply(msgsize);
                 if (last_err == ERROR_OK) {
-                    last_err = protocol_base::deserialize_reply(msg, msgsize, msg_id, ret);
+                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id, ret);
                 }
                 if (last_err != ERROR_OK) {
                     if (last_err == ERROR_JSON_NO_REPLY) {
@@ -600,7 +617,7 @@ namespace rdl {
             msgsize        = 0;
             while ((time = sys::millis()) < endtime) {
                 if (istream_.available() > 0) {
-                    msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
+                    msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
                     DCS_BLK(logger_->print("CLIENT << "); logger_->print_escaped(buffer_.data(), msgsize, "'"); logger_->println());
                     if (msgsize > 0) {
                         DCS_BLK(logger_->print("CLIENT read_reply found"));
@@ -626,7 +643,7 @@ namespace rdl {
             }
             DCS(unsigned long starttime = sys::millis());
 
-            msgsize = istream_.readBytesUntil(slip_stdcodes::SLIP_END, buffer_.data(), buffer_.size());
+            msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
             DCS_BLK(logger_->print("CLIENT << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
             if (msgsize > 0) {
                 DCS_BLK(logger_->print("CLIENT read_reply found"));
@@ -640,12 +657,12 @@ namespace rdl {
 
     #endif
 
-        using protocol_base::istream_;
-        using protocol_base::ostream_;
-        using protocol_base::buffer_;
-        using protocol_base::timeout_ms_;
-        using protocol_base::retry_delay_ms_;
-        using protocol_base::logger_;
+        using BaseT::istream_;
+        using BaseT::ostream_;
+        using BaseT::buffer_;
+        using BaseT::timeout_ms_;
+        using BaseT::retry_delay_ms_;
+        using BaseT::logger_;
         long nextid_;
         uint8_t buffer_data_[BUFSIZE];
     };
