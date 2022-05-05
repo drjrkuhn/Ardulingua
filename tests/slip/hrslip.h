@@ -2,24 +2,44 @@
 
 #pragma once
 
-#include <rdl/sys_StringT.h>
-#include <rdl/SlipInPlace.h>
 #include <cassert>
+#include <rdl/SlipInPlace.h>
+#include <rdl/sys_StringT.h>
 
 #ifndef __HRSLIP_H__
     #define __HRSLIP_H__
 
 namespace rdl {
-    typedef rdl::svc::encoder_base<char, '#', 'D', '^', '['> slip_encoder_hr;
-    typedef rdl::svc::decoder_base<char, '#', 'D', '^', '['> slip_decoder_hr;
+    /* Human readable SLIP codes */
+    struct slip_hr_codes {
+        static constexpr uint8_t SLIP_END      = '#'; ///< 0xC0
+        static constexpr uint8_t SLIP_ESCEND   = 'D'; ///< 0xDC
+        static constexpr uint8_t SLIP_ESC      = '^'; ///< 0xDB
+        static constexpr uint8_t SLIP_ESCESC   = '['; ///< 0xDD
+        static constexpr uint8_t SLIPX_NULL    = 0;   ///< 0 (nonstandard)
+        static constexpr uint8_t SLIPX_ESCNULL = 0;   ///< tag for NO NULL encoding
+    };
 
-    typedef rdl::svc::encoder_base<char, '#', 'D', '^', '[', '0', '@'> slip_encoder_hrnull;
-    typedef rdl::svc::decoder_base<char, '#', 'D', '^', '[', '0', '@'> slip_decoder_hrnull;
+    /* Human readable SLIP+NULL codes */
+    struct slip_hrnull_codes {
+        static constexpr uint8_t SLIP_END      = '#'; ///< 0xC0
+        static constexpr uint8_t SLIP_ESCEND   = 'D'; ///< 0xDC
+        static constexpr uint8_t SLIP_ESC      = '^'; ///< 0xDB
+        static constexpr uint8_t SLIP_ESCESC   = '['; ///< 0xDD
+        static constexpr uint8_t SLIPX_NULL    = '0'; ///< 0 (nonstandard)
+        static constexpr uint8_t SLIPX_ESCNULL = '@'; ///< tag for NO NULL encoding
+    };
+
+    typedef rdl::svc::encoder_base<char, slip_hr_codes> slip_encoder_hr;
+    typedef rdl::svc::decoder_base<char, slip_hr_codes> slip_decoder_hr;
+
+    typedef rdl::svc::encoder_base<char, slip_hrnull_codes> slip_encoder_hrnull;
+    typedef rdl::svc::decoder_base<char, slip_hrnull_codes> slip_decoder_hrnull;
 
     template <class FROM, class TO>
     sys::StringT recode(const sys::StringT& src) {
         sys::StringT dest = src;
-        using to_char_t = typename TO::char_type;
+        using to_char_t   = typename TO::char_type;
         if (src.length() == 0)
             return dest;
         assert(FROM::num_specials == TO::num_specials);
