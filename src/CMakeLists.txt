@@ -8,7 +8,9 @@ add_library(${CORELIB_NAME} INTERFACE
     rdl/Common.h
     rdl/Delegate.h 
     rdl/JsonDelegate.h 
-    rdl/JsonDispatch.h 
+    rdl/JsonProtocol.h 
+    rdl/JsonClient.h
+    rdl/JsonServer.h
     rdl/JsonError.h
     rdl/Logger.h 
     rdl/ServerProperty.h

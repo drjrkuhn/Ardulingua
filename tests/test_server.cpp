@@ -2,7 +2,9 @@
 #include <rdl/sys_StreamT.h>
 #include <rdl/ServerProperty.h>
 #include <rdl/JsonDelegate.h>
-#include <rdl/JsonDispatch.h>
+#include <rdl/JsonProtocol.h>
+#include <rdl/JsonClient.h>
+#include <rdl/JsonServer.h>
 #include <rdl/Logger.h>
 #include <rdl/sys_timing.h>
 #include <unordered_map>
