@@ -74,10 +74,10 @@ namespace rdlmm {
         }
 
         /** Get the internal property value directly (NOT the property store value). */
-        virtual int GetProperty(PropT& value) { return get_impl(value); }
+        virtual int GetProperty(PropT& value) const { return get_impl(value); }
 
         /** Get the locally cached property value directly (NOT the property store value). */
-        virtual int GetCachedProperty(PropT& value) { return getCached_impl(value); }
+        virtual int GetCachedProperty(PropT& value) const { return getCached_impl(value); }
 
         /**
          * Get the Device that owns the property (hub or sub-device).
@@ -102,14 +102,14 @@ namespace rdlmm {
          * This does NOT update the underlying MM Property store via
          * DeviceBase::SetProperty(name,value). That should happen during OnExecute
          */
-        virtual int get_impl(PropT& val) = 0;
+        virtual int get_impl(PropT& val) const = 0;
 
         /**
          * Get the inernal cached property value (last call to set()).
          * This does NOT update the underlying MM Property store via
          * DeviceBase::SetProperty(name,value). That should happen during OnExecute
          */
-        virtual int getCached_impl(PropT& value) = 0;
+        virtual int getCached_impl(PropT& value) const = 0;
 
         /**
          * Notify callback of change in value.
@@ -177,94 +177,11 @@ namespace rdlmm {
         DeviceT* device_;
         sys::StringT name_;
         sys::StringT brief_;
-        PropT cachedValue_;
+        mutable PropT cachedValue_;
         bool isReadOnly_;
         bool isSequencable_;
         bool isVolatile_;
         NotifyChangeFnT notifyChangeFunc_;
-
-    #if 0
-     private:
-        /*******************************************************************
-        * Create underlying MM::Property on device
-        * 
-        * TODO: Just integrate createMMPropOnDevice into createAndLinkProp
-        *       and remove these
-        *
-        * - one based on a MM Action 
-        * - the other creates an MM Action from a device method
-        ******************************************************************* /
-
-        /** Creates a property that calls an update function on device from the checkedInfo.
-         *
-         * The initial value is given as a parameter.
-         * This version requires a device member function of the form
-         * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from checkedInfo.
-         */
-        template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device,
-                                               const PropInfo<PropT>& checkedInfo,
-                                               const PropT& initialValue,
-                                               int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
-                                               bool isReadOnly = false) {
-            MM::Action<DeviceT>* action = fn ? new MM::Action<DeviceT>(device, fn) : nullptr;
-            return createMMPropOnDevice(device, checkedInfo, initialValue, action, isReadOnly);
-        };
-
-        ///** Creates a property Without initial value that calls an update function on device from the checkedInfo.
-        // *
-        // * Create MM device properties from PropInfo information. This version requires a device member function of the form
-        // * int OnProperty(MM::PropertyBase* pPropt, MM::ActionType eAct) The initial value is taken from checkedInfo.
-        // */
-        //template <typename PropT, class DeviceT>
-        //static inline int createMMPropOnDevice(DeviceT* device,
-        //                                       const PropInfo<PropT>& checkedInfo,
-        //                                       int (DeviceT::*fn)(MM::PropertyBase* pPropt, MM::ActionType eAct),
-        //                                       bool isReadOnly = false) {
-        //    return createMMPropOnDevice(device, checkedInfo, checkedInfo.initialValue(), fn, isReadOnly);
-        //}
-
-        /** Creates a property that calls an update action on device from the checkedInfo.
-         *
-         * ### THIS IS THE MAIN PROPERTY CREATION ENTRY POINT
-         *
-         * The initial value is given as a parameter.
-         */
-        template <typename PropT, class DeviceT>
-        static inline int createMMPropOnDevice(DeviceT* device,
-                                               const PropInfo<PropT>& checkedInfo,
-                                               PropT initialValue,
-                                               MM::ActionFunctor* action,
-                                               bool isReadOnly = false) {
-            // double-check the read-only flag if the checkedInfo was created with the assertReadOnly() flag
-            if (checkedInfo.isReadOnly() && !isReadOnly) {
-                assert(checkedInfo.isReadOnly() == isReadOnly);
-                // Create an "ERROR" property if assert was turned off during compile.
-                device->CreateProperty(checkedInfo.name(), "CreateProperty ERROR: read-write property did not assertReadOnly", MM::String, true);
-                return DEVICE_INVALID_PROPERTY;
-            }
-            int ret = device->CreateProperty(checkedInfo.name(),
-                                             ToString(initialValue).c_str(),
-                                             MMPropertyType_of<PropT>(initialValue),
-                                             isReadOnly,
-                                             action,
-                                             checkedInfo.isPreInit());
-            if (ret != DEVICE_OK) {
-                return ret;
-            }
-            if (checkedInfo.hasLimits()) {
-                ret = device->SetPropertyLimits(checkedInfo.name(), checkedInfo.minValue(), checkedInfo.maxValue());
-            }
-            if (checkedInfo.hasAllowedValues()) {
-                std::vector<sys::StringT> allowedStrings;
-                for (PropT aval : checkedInfo.allowedValues()) {
-                    allowedStrings.push_back(ToString(aval));
-                }
-                device->SetAllowedValues(checkedInfo.name(), allowedStrings);
-            }
-            return ret;
-        };
-    #endif
     };
 
 }; // namespace aling

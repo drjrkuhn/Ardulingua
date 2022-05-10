@@ -108,12 +108,12 @@ namespace rdlmm {
         }
 
         ///** Get the value before updating the property. Derived classes may override. */
-        virtual int get_impl(PropT& value) override {
+        virtual int get_impl(PropT& value) const override {
             return getCached_impl(value);
         }
 
         /** Get the cached property value (last call to set()) */
-        virtual int getCached_impl(PropT& value) {
+        virtual int getCached_impl(PropT& value) const {
             value = cachedValue_;
             return DEVICE_OK;
         }

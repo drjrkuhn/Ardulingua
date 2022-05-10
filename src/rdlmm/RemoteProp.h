@@ -4,7 +4,8 @@
     #define __REMOTEPROP_H__
 
     #include "../rdl/Delegate.h"
-    #include "../rdl/JsonDispatch.h"
+    #include "../rdl/JsonClient.h"
+    #include "../rdl/JsonProtocol.h"
     #include "../rdl/sys_StringT.h"
     #include "DeviceError.h"
     #include "DeviceProp.h"
@@ -162,7 +163,8 @@ namespace rdlmm {
         using ThisT   = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
         using ActionT = MM::Action<ThisT>;
         //using StreamAdapterT = rdlmm::Stream_HubSerial<DeviceT>;
-        using ClientT   = rdl::json_client<JSONRCP_BUFFER_SIZE>;
+        using KeysT     = rdl::jsonrpc_default_keys;
+        using ClientT   = rdl::json_client<KeysT, JSONRCP_BUFFER_SIZE>;
         using ExtrasT   = std::tuple<ExT...>;
         using ToRemoteT = rdl::delegate<rdl::RetT<RemoteT>, LocalT>;
         using ToLocalT  = rdl::delegate<rdl::RetT<LocalT>, RemoteT>;
@@ -280,7 +282,7 @@ namespace rdlmm {
         }
 
         ///** Get the value before updating the property. Derived classes may override. */
-        virtual int get_impl(LocalT& localv) override {
+        virtual int get_impl(LocalT& localv) const override {
             RemoteT remotev = 0;
             int ret         = client_->call_get_tuple<RemoteT, ExtrasT>(meth_str('?').c_str(), remotev, extra_);
             if (ret != DEVICE_OK)
@@ -291,7 +293,7 @@ namespace rdlmm {
         }
 
         ///** Get the value before updating the property. Derived classes may override. */
-        virtual int getCached_impl(LocalT& localv) override {
+        virtual int getCached_impl(LocalT& localv) const override {
             if (isVolatile_)
                 return get_impl(localv);
             localv = cachedValue_;
@@ -438,6 +440,17 @@ namespace rdlmm {
     // Remote device helpers
     /////////////////////////////////////////////////////////////////////////////
 
+    namespace svc {
+        constexpr char* const g_SerialUndefinedPort       = "Undefined";
+        constexpr char* const g_SerialDataBits            = "8";
+        constexpr char* const g_SerialParity              = "None";
+        constexpr char* const g_SerialStopBits            = "1";
+        constexpr char* const g_SerialHandshaking         = "Off";
+        constexpr char* const g_SerialAnswerTimeout       = "500.0";
+        constexpr char* const g_SerialDelayBetweenCharsMs = "0";
+
+    }
+
     /**
      * Detect a hub device on a given stream.
      * 
@@ -474,12 +487,12 @@ namespace rdlmm {
 
                 // device specific default communication parameters for Arduino
                 core->SetDeviceProperty(port_name, MM::g_Keyword_BaudRate, std::to_string(baud_rate).c_str());
-                core->SetDeviceProperty(port_name, MM::g_Keyword_DataBits, g_SerialDataBits);
-                core->SetDeviceProperty(port_name, MM::g_Keyword_Parity, g_SerialParity);
-                core->SetDeviceProperty(port_name, MM::g_Keyword_StopBits, g_SerialStopBits);
-                core->SetDeviceProperty(port_name, MM::g_Keyword_Handshaking, g_SerialHandshaking);
-                core->SetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, g_SerialAnswerTimeout);
-                core->SetDeviceProperty(port_name, MM::g_Keyword_DelayBetweenCharsMs, g_SerialDelayBetweenCharsMs);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_DataBits, svc::g_SerialDataBits);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_Parity, svc::g_SerialParity);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_StopBits, svc::g_SerialStopBits);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_Handshaking, svc::g_SerialHandshaking);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, svc::g_SerialAnswerTimeout);
+                core->SetDeviceProperty(port_name, MM::g_Keyword_DelayBetweenCharsMs, svc::g_SerialDelayBetweenCharsMs);
 
                 core->GetDevice(hub, port_name)->Initialize();
                 // The first second or so after opening the serial port, the Arduino is
@@ -487,29 +500,29 @@ namespace rdlmm {
                 CDeviceUtils::SleepMs(2000);
 
                 // Create a temporary json_client object and query the firmware version
-                rdl::json_client<JSONRCP_BUFFER_SIZE> client(adapter, adapter);
+                rdl::json_client<rdl::jsonrpc_default_keys, JSONRCP_BUFFER_SIZE> client(adapter, adapter);
 
                 int firmware_version = 0;
-                error                = client.call_get<rdl::RetT<int>, std::string>("?fver", firmware_version, firmname);
+
+                int error = client.call_get<rdl::RetT<int>, std::string>("?fver", firmware_version, firmname);
                 if (error) {
-                    adapter->LogMessage("DetectRemote: JSON-RPC failed: ", false);
-                    adapter->LogMessageCode(error, false);
-                    return ERR_FIRMWARE_NOT_FOUND;
+                    adapter.LogMessage("DetectRemote: JSON-RPC failed: ", false);
+                    adapter.LogMessageCode(error, false);
+                    return MM::DeviceDetectionStatus::CanNotCommunicate;
                 }
                 if (firmware_version < minver) {
                     std::stringstream ss;
                     ss << "DetectRemote: firmware version " << firmware_version << " < min version " << minver;
-                    adapter->LogMessage(ss.str(), false);
+                    adapter.LogMessage(ss.str(), false);
                 }
-                return DEVICE_OK;
-
                 // always restore the AnswerTimeout to the default
                 core->SetDeviceProperty(port_name, MM::g_Keyword_AnswerTimeout, defaultAnswerTimeout);
+                return MM::DeviceDetectionStatus::CanCommunicate;
             }
         } catch (...) {
-            adapter->LogMessage("Exception in DetectDevice tryStream!", false);
+            adapter.LogMessage("Exception in DetectDevice tryStream!", false);
         }
-        return result;
+        return MM::DeviceDetectionStatus::Misconfigured;
     }
 
 }; // namespace rdl

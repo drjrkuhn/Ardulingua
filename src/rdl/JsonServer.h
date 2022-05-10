@@ -18,212 +18,88 @@
 namespace rdl {
 
     /************************************************************************
-     * CLIENT
+     * SERVER
      ***********************************************************************/
-    template <class KeysT, size_t BUFSIZE>
-    class json_client : protocol_base<KeysT> {
+    template <class MapT, class KeysT, size_t BUFSIZE>
+    class json_server : public protocol_base<KeysT> {
      public:
         using BaseT = protocol_base<KeysT>;
         using BaseT::logger;
 
-        json_client(sys::StreamT& istream, sys::StreamT& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
+        json_server(sys::StreamT& istream, sys::StreamT& ostream, MapT& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
             : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
-              nextid_(1) {
+              dispatch_map_(map) {
         }
 
-        template <typename... PARAMS>
-        int call(const char* method, PARAMS... args) {
-            unsigned long starttime = sys::millis();
-            unsigned long endtime   = starttime + timeout_ms_;
-            unsigned long time;
-            int last_err = ERROR_OK;
-            size_t msgsize;
-            long msg_id = nextid_++;
-            last_err    = call_impl<PARAMS...>(method, msg_id, args...);
-            int attempt = 0;
-            while ((time = sys::millis()) < endtime) {
-                attempt++;
-                // give some time for the reply
-                if (retry_delay_ms_ > 0) {
-                    sys::delay(retry_delay_ms_);
-                } else {
-                    sys::yield();
-                }
-                DCS_BLK(logger_->print("CLIENT call read_reply attempt "); logger_->println(attempt));
-                // get reply
-                StaticJsonDocument<svc::JDOC_SIZE> msg;
-                last_err = read_reply(msgsize);
-                if (last_err == ERROR_OK) {
-                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id);
-                }
-                if (last_err != ERROR_OK) {
-                    if (last_err == ERROR_JSON_NO_REPLY) {
-                        DCS_BLK(logger_->println("CLIENT no reply yet"));
-                    } else {
-                        DCS_BLK(logger_->print("CLIENT bad reply ERROR "); logger_->println(last_err));
-                    }
-                    continue; // try again
-                }
-                DCS_BLK(logger_->print("CLIENT call success"));
-                DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-
-                // all good
+        int check_messages() {
+            size_t available = istream_.available();
+            if (available == 0) {
+                // std::cout << ".";
                 return ERROR_OK;
             }
-            return last_err;
-        }
-
-        /** Call with no return and tuple of parameters */
-        template <typename TUPLE>
-        inline int call_tuple(const char* method, TUPLE args) {
-            return call_tuple_impl(method, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
-        }
-
-        template <typename RTYPE, typename... PARAMS>
-        int call_get(const char* method, RTYPE& ret, PARAMS... args) {
-            unsigned long starttime = sys::millis();
-            unsigned long endtime   = starttime + timeout_ms_;
-            unsigned long time;
-            int last_err = ERROR_OK;
-            size_t msgsize;
-            long msg_id = nextid_++;
-            last_err    = call_impl<PARAMS...>(method, msg_id, args...);
-            int attempt = 0;
-            while ((time = sys::millis()) < endtime) {
-                attempt++;
-                // give some time for the reply
-                if (retry_delay_ms_ > 0) {
-                    sys::delay(retry_delay_ms_);
-                } else {
-                    sys::yield();
-                }
-                DCS_BLK(logger_->print("CLIENT call read_reply attempt "); logger_->println(attempt));
-                // get reply
-                StaticJsonDocument<svc::JDOC_SIZE> msg;
-                last_err = read_reply(msgsize);
-                if (last_err == ERROR_OK) {
-                    last_err = BaseT::deserialize_reply(msg, msgsize, msg_id, ret);
-                }
-                if (last_err != ERROR_OK) {
-                    if (last_err == ERROR_JSON_NO_REPLY) {
-                        DCS_BLK(logger_->println("CLIENT no reply yet"));
-                    } else {
-                        DCS_BLK(logger_->print("CLIENT bad reply ERROR "); logger_->println(last_err));
-                    }
-                    continue; // try again
-                }
-                DCS_BLK(logger_->print("CLIENT call_get success"));
-                DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-                // all good
-                return ERROR_OK;
-            }
-            return last_err;
-        }
-
-        /** Call with return value and tuple of parameters */
-        template <typename RTYPE, typename TUPLE>
-        inline int call_get_tuple(const char* method, RTYPE& ret, TUPLE args) {
-            return call_get_tuple_impl<RTYPE>(method, ret, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
-        }
-
-        template <typename... PARAMS>
-        int notify(const char* method, PARAMS... args) {
-            return call_impl(method, -1, args...);
-        }
-
-        /** Notify (no return) with tulple of parameters */
-        template <typename TUPLE>
-        inline int notify_tuple(const char* method, TUPLE args) {
-            return notify_tuple_impl(method, args, std::make_index_sequence<std::tuple_size<TUPLE>{}>{});
-        }
-
-     protected:
-        template <typename TUPLE, size_t... I>
-        inline int call_tuple_impl(const char* method, TUPLE args, std::index_sequence<I...>) {
-            return call(method, std::get<I>(args)...);
-        }
-
-        template <typename RTYPE, typename TUPLE, size_t... I>
-        inline int call_get_tuple_impl(const char* method, RTYPE& ret, TUPLE args, std::index_sequence<I...>) {
-            return call_get<RTYPE>(method, ret, std::get<I>(args)...);
-        }
-
-        template <typename TUPLE, size_t... I>
-        inline int notify_tuple_impl(const char* method, TUPLE args, std::index_sequence<I...>) {
-            return notify(method, std::get<I>(args)...);
-        }
-
-        template <typename... PARAMS>
-        int call_impl(const char* method, long msg_id, PARAMS... args) {
-            int last_err = ERROR_OK;
-            size_t msgsize;
+            // read message
+            size_t msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
+            DCS_BLK(logger_->print(SERVER_COL "SERVER << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
+            if (msgsize == 0)
+                return ERROR_JSON_TIMEOUT;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
-            last_err = this->template serialize_call<PARAMS...>(msg, msgsize, method, msg_id, args...);
-            if (last_err != ERROR_OK)
-                return last_err;
-            size_t writesize = ostream_.write(buffer_.data(), msgsize);
-            if (writesize < msgsize)
-                return ERROR_JSON_SEND_ERROR;
-            DCS_BLK(logger_->print("CLIENT >> "); print_escaped(*logger_, buffer_.data(), writesize, "'"); logger_->println());
+            JsonArray args = msg.as<JsonArray>(); // dummy initializion
+            StaticJsonDocument<svc::JRESULT_SIZE> resultdoc;
+            JsonVariant result = resultdoc.as<JsonVariant>();
+            sys::StringT method;
+            auto mapit = dispatch_map_.end();
+            int id = -1, err = ERROR_OK;
+            for (;;) { // "try" clause. Always use break to exit
+                err = BaseT::deserialize_call(msg, msgsize, method, id, args);
+                if (err != ERROR_OK) break;
+                mapit = dispatch_map_.find(method);
+                err   = (mapit == dispatch_map_.end()) ? ERROR_JSON_METHOD_NOT_FOUND : ERROR_OK;
+                if (err == ERROR_JSON_METHOD_NOT_FOUND) {
+                    DCS_BLK(logger_->print(SERVER_COL "SERVER method "); logger_->print(method); logger_->println(" not found"));
+                } else {
+                    DCS_BLK(logger_->print(SERVER_COL "SERVER calling "); logger_->print(method); logger_->println());
+                }
+                if (err != ERROR_OK) break;
+                json_stub jstub = mapit->second;
+                err             = jstub.call(args, result);
+                DSRV_BLK(logger_->print(SERVER_COL "SERVER called "); logger_->print(mapit->first); sys::StringT astr; ArduinoJson::serializeJson(args, astr); logger_->print(astr));
+                DSRV_BLK(
+                    if (err != ERROR_OK) {
+                        logger_->print(" -> ERROR ");
+                        logger_->println(err);
+                    } else {
+                        logger_->print(" -> ");
+                        logger_->println(result.as<sys::StringT>());
+                    });
+                break;
+            }
+            if (id >= 0) { // server wants reply
+                sys::yield();
+                msg.clear();
+                if (mapit != dispatch_map_.end() && !mapit->second.returns_void()) {
+                    err = BaseT::serialize_reply(msg, msgsize, id, result, err);
+                } else {
+                    err = BaseT::serialize_reply(msg, msgsize, id, err);
+                }
+                if (err != ERROR_OK)
+                    return err;
+                size_t writesize = ostream_.write(buffer_.data(), msgsize);
+                if (writesize < msgsize)
+                    return ERROR_JSON_SEND_ERROR;
+                DCS_BLK(logger_->print(SERVER_COL "SERVER >> "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
+            }
             return ERROR_OK;
         }
 
-    #if 0
-        int read_reply(size_t& msgsize) {
-            unsigned long starttime = sys::millis();
-            unsigned long endtime = starttime + timeout_ms_;
-            unsigned long time;
-            msgsize        = 0;
-            while ((time = sys::millis()) < endtime) {
-                if (istream_.available() > 0) {
-                    msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
-                    DCS_BLK(logger_->print("CLIENT << "); logger_->print_escaped(buffer_.data(), msgsize, "'"); logger_->println());
-                    if (msgsize > 0) {
-                        DCS_BLK(logger_->print("CLIENT read_reply found"));
-                        DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-                        return ERROR_OK;
-                    }
-                }
-                if (retry_delay_ms_ > 0) {
-                    sys::delay(retry_delay_ms_);
-                } else {
-                    sys::yield();
-                }
-            }
-            DCS_BLK(logger_->print("CLIENT read_reply TIMEOUT"));
-            DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-            return ERROR_JSON_TIMEOUT;
-        }
-    #else
-        int read_reply(size_t& msgsize) {
-            if (istream_.available() == 0) {
-                // Let the caller deal with timeouts
-                return ERROR_JSON_NO_REPLY;
-            }
-            DCS(unsigned long starttime = sys::millis());
-
-            msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
-            DCS_BLK(logger_->print("CLIENT << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
-            if (msgsize > 0) {
-                DCS_BLK(logger_->print("CLIENT read_reply found"));
-                DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-                return ERROR_OK;
-            }
-            DCS_BLK(logger_->print("CLIENT read_reply INVALID REPLY"));
-            DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-            return ERROR_JSON_INVALID_REPLY;
-        }
-
-    #endif
-
+     protected:
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
         using BaseT::timeout_ms_;
         using BaseT::retry_delay_ms_;
         using BaseT::logger_;
-        long nextid_;
+        MapT& dispatch_map_;
         uint8_t buffer_data_[BUFSIZE];
     };
 

@@ -5,6 +5,7 @@
 
     #include "../rdl/sys_StreamT.h"
     #include "../rdl/sys_StringT.h"
+    #include "../rdl/sys_timing.h"
     #include <cstddef> // for size_t
     #include <deque>
     #include <mutex>
@@ -141,7 +142,7 @@ namespace rdlmm {
         /** Expose the hub's GetCoreCallback method */
         MM::Core* GetCoreCallback() const {
             std::lock_guard<std::mutex> _(guard_);
-            return accessor::GetCoreCallbacl(hub_);
+            return accessor::GetCoreCallback(hub_);
         }
 
      protected:
@@ -181,7 +182,7 @@ namespace rdlmm {
                 return (target->*fn)(errorCode, text);
             }
             static MM::Core* GetCoreCallback(DeviceT* target) {
-                MM::Core* (DeviceT::*fn)() const = &DeviceT::GetCoreCallbak;
+                MM::Core* (DeviceT::*fn)() const = &DeviceT::GetCoreCallback;
                 return (target->*fn)();
             }
 
@@ -311,7 +312,7 @@ namespace rdlmm {
          * function for serial */
         void getNextChar() {
             if (rdbuf_.empty()) {
-                unsigned long timeout = arduino::millis() + getTimeout();
+                unsigned long timeout = sys::millis() + getTimeout();
                 do {
                     unsigned char buf;
                     unsigned long read;
@@ -320,7 +321,7 @@ namespace rdlmm {
                         rdbuf_.push_back(buf);
                         return;
                     }
-                } while (arduino::millis() < timeout);
+                } while (sys::millis() < timeout);
             }
         }
 

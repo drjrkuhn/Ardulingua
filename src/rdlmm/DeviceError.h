@@ -197,7 +197,10 @@ namespace rdlmm {
             if (!(COND)) {                                        \
                 rdlmm::assertResult((ERROR), __FILE__, __LINE__); \
             }
+    #endif
 
+    #ifndef THROW_DEVICE_ERROR
+        #define THROW_DEVICE_ERROR(ERR) throw rdlmm::DeviceResultException(ERR, __FILE__, __LINE__);
     #endif
 
 }; // namespace
