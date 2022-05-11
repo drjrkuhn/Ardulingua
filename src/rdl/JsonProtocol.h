@@ -277,7 +277,8 @@ namespace rdl {
             DCS_BLK(logger_->print(SERVER_COL "\tdeserialized"); println(*logger_, msgdoc));
             if (!msgdoc.containsKey(key_method()))
                 return ERROR_JSON_INVALID_REQUEST;
-            method = msgdoc[key_method()].as<sys::StringT>();
+            JsonVariant jmethod = msgdoc[key_method()];
+            method = jmethod.as<sys::StringT>();
             if (!msgdoc.containsKey(key_params()))
                 return ERROR_JSON_INVALID_REQUEST;
             args = msgdoc[key_params()];
