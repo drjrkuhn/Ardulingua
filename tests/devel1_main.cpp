@@ -150,7 +150,7 @@ int main() {
     return 0;
 }
 
-#elif 1
+#elif 0
 
 // HASH functions. See Stack overflow
 // https://stackoverflow.com/questions/7666509/hash-function-for-string
@@ -221,7 +221,15 @@ int main() {
     return 0;
 }
 
-#else
+#elif 1
 
+
+int main() {
+    using namespace std;
+
+    cout << "=== Testing Template specialization ===" << endl;
+    
+    return 0;
+}
 
 #endif

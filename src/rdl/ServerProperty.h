@@ -144,23 +144,27 @@ namespace rdl {
      * @endcode
      *
      * @tparam T        property value type
-     * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, long MAX_SEQ_SIZE>
+    template <typename T>
     class simple_prop_base : public prop_any_base<T> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T>;
-        using ThisT = simple_prop_base<T, MAX_SEQ_SIZE>;
+        using ThisT = simple_prop_base<T>;
         using RootT = BaseT; // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
         using BaseT::logger;
 
-        simple_prop_base(const sys::StringT& brief_name, const T initial, bool sequencable = false, bool read_only = false)
+        simple_prop_base(const sys::StringT& brief_name, const T initial, long seq_capacity, bool read_only = false)
             : BaseT(brief_name),
-              value_(initial), sequencable_(sequencable), read_only_(read_only), max_size_(MAX_SEQ_SIZE),
+              value_(initial), seq_capacity_(seq_capacity), read_only_(read_only),
               next_index_(0), size_(0), started_(false) {
+                  sequence_ = (T*)malloc(seq_capacity_ * sizeof(T));
+        }
+
+        virtual ~simple_prop_base() {
+            free(sequence_);
         }
 
         ////// IMPLEMENT INTERFACE //////
@@ -181,10 +185,7 @@ namespace rdl {
             value_ = value;
         }
         virtual long max_size() const override {
-            if (sequencable())
-                return max_size_;
-            else
-                return 0;
+            return seq_capacity_;
         }
         virtual long size() const override {
             return size_;
@@ -195,9 +196,8 @@ namespace rdl {
             return 0;
         }
         virtual void add(const T value) override {
-            if (size_ >= max_size_ || !sequencable())
-                return;
-            values_[size_++] = value;
+            if (size_ < seq_capacity_)
+                sequence_[size_++] = value;
         }
         virtual void start() override {
             next_index_ = 0;
@@ -207,7 +207,7 @@ namespace rdl {
             started_ = false;
         }
         virtual bool sequencable() const override {
-            return sequencable_;
+            return seq_capacity_ > 0;
         }
         virtual bool read_only() const override {
             return read_only_;
@@ -215,13 +215,12 @@ namespace rdl {
 
      protected:
         T value_;
-        bool sequencable_;
+        const long seq_capacity_;
         bool read_only_;
-        const long max_size_;
         volatile long next_index_;
         long size_;
         volatile bool started_;
-        T values_[MAX_SEQ_SIZE];
+        T* sequence_;
     };
 
     /************************************************************************
@@ -233,37 +232,41 @@ namespace rdl {
      * since this is for one-time server method dispatch setup.
      *
      * @tparam T        property value type
-     * @tparam StringT     strings used by the server (std::string or arudino::String)
-     * @tparam MAX_SEQ_SIZE maximum sequence size (at compile time)
      ************************************************************************/
-    template <typename T, int MAX_CHANNELS>
+    template <typename T>
     class channel_prop_base : public prop_any_base<T, int> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T, int>;
-        using ThisT = channel_prop_base<T, MAX_CHANNELS>;
-        using ChanT = prop_any_base<T>; // MAX_SEQ_SIZE doesn't matter for the reference
+        using ThisT = channel_prop_base<T>;
+        using ChanT = prop_any_base<T>; // seq_capacity_ doesn't matter for the reference
         using RooT = BaseT;    // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
         using BaseT::logger;
 
-        channel_prop_base(const sys::StringT& brief_name)
-            : BaseT(brief_name), num_channels_(0) {
+        channel_prop_base(const sys::StringT& brief_name, int chan_capacity)
+            : BaseT(brief_name), num_channels_(0), chan_capacity_(chan_capacity) {
+                channels_ = malloc(chan_capacity_ * sizeof(ChanT*));
         }
         channel_prop_base(const sys::StringT& brief_name, ChanT* props[], int nchan)
-            : BaseT(brief_name), num_channels_(0) {
+            : BaseT(brief_name), num_channels_(0), chan_capacity_(nchan) {
+                channels_ = (ChanT**)malloc(chan_capacity_ * sizeof(ChanT*));
             add(props, nchan);
         }
 
+        virtual ~channel_prop_base() {
+            free(channels_);
+        }
+
         int add(ChanT* prop) {
-            if (num_channels_ + 1 > MAX_CHANNELS) return num_channels_;
+            if (num_channels_ + 1 > chan_capacity_) return num_channels_;
             channels_[num_channels_++] = prop;
             return num_channels_;
         }
 
         int add(ChanT* props[], int nchan) {
-            if (num_channels_ + nchan > MAX_CHANNELS) return num_channels_;
+            if (num_channels_ + nchan > chan_capacity_) return num_channels_;
             for (int i = 0; i < nchan; i++)
                 add(props[i]);
             return num_channels_;
@@ -441,7 +444,8 @@ namespace rdl {
 
      protected:
         int num_channels_;
-        ChanT* channels_[MAX_CHANNELS];
+        int chan_capacity_;
+        ChanT** channels_;
     };
 
 };

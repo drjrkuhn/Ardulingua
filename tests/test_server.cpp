@@ -30,22 +30,16 @@ using MapT = std::unordered_map<sys::StringT, json_stub, sys::string_hash>;
 
 MapT dispatch_map;
 
-template <typename T>
-using simple_prop = simple_prop_base<T, 64>;
+rdl::simple_prop_base<int> foo("foo", 1, 32);
 
-template <typename T>
-using channel_prop = channel_prop_base<T, 10>;
-
-rdl::simple_prop_base<int,32> foo("foo", 1, true);
-
-rdl::simple_prop_base<double,32> bar0("bar0", 1.1f, true);
-rdl::simple_prop_base<double,32> bar1("bar1", 2.2f, true);
-rdl::simple_prop_base<double,32> bar2("bar2", 3.3f, true);
-rdl::simple_prop_base<double,32> bar3("bar3", 4.4f, true);
+rdl::simple_prop_base<double> bar0("bar0", 1.1f, 32);
+rdl::simple_prop_base<double> bar1("bar1", 2.2f, 32);
+rdl::simple_prop_base<double> bar2("bar2", 3.3f, 32);
+rdl::simple_prop_base<double> bar3("bar3", 4.4f, 32);
 
 decltype(bar0)::RootT* all_bars[] = {&bar0, &bar1, &bar2, &bar3};
 
-rdl::channel_prop_base<double, 4> bars("bar", all_bars, 4);
+rdl::channel_prop_base<double> bars("bar", all_bars, 4);
 
 
 // std::stringstream ss_toserver;
