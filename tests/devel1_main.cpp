@@ -15,11 +15,11 @@ using MapT = std::map<sys::StringT, rdl::json_stub>;
 // class simple_sequencable_base : public simple_sequencable_base<simple_prop<DT, T, StrT, MapT, MAX_SIZE>, T, StrT, MapT> {
 
 template <typename T, long MAX_SIZE>
-using simple_prop = simple_prop_base<T, sys::StringT, MAX_SIZE>;
+using simple_prop = simple_prop<T, sys::StringT, MAX_SIZE>;
 
-// class simple_prop : public simple_prop_base<T, sys::StringT, MAX_SIZE> {
+// class simple_prop : public simple_prop<T, sys::StringT, MAX_SIZE> {
 //  public:
-//     using BaseT    = simple_prop_base<T, sys::StringT, MAX_SIZE>;
+//     using BaseT    = simple_prop<T, sys::StringT, MAX_SIZE>;
 //     using typename BaseT::PropAnyT;
 
 //     simple_prop(const sys::StringT& brief_name, const T initial, bool sequencable = false)
@@ -27,7 +27,7 @@ using simple_prop = simple_prop_base<T, sys::StringT, MAX_SIZE>;
 // };
 
 template <typename T, long MAX_CHANNELS>
-using channel_prop = channel_prop_base<T, sys::StringT, MAX_CHANNELS>;
+using channel_prop = channel_prop<T, sys::StringT, MAX_CHANNELS>;
 
 template <typename T>
 struct TD;
@@ -38,7 +38,7 @@ int main() {
 
     MapT dmap;
 
-    typedef simple_prop_base<int, sys::StringT, 64> SP;
+    typedef simple_prop<int, sys::StringT, 64> SP;
     // TD<SP> td_sp;
     using SBase = typename SP::PropAnyT;
     // TD<SBase> td_sbase;
@@ -64,8 +64,8 @@ int main() {
 
     // TD<decltype(foo)> td1;
     // TD<decltype(meth)> td2;
-    // typename decltype( simple_prop_base<int, sys::StringT, 64> )::_;
-    // typename decltype(&simple_prop_base<int, sys::StringT, 64>::set)::_;
+    // typename decltype( simple_prop<int, sys::StringT, 64> )::_;
+    // typename decltype(&simple_prop<int, sys::StringT, 64>::set)::_;
 
     // auto jd2 = json_delegate<void, int>::create_m<SP, &SP::set>(&foo);
 

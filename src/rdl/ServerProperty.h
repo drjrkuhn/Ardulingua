@@ -136,9 +136,9 @@ namespace rdl {
      * Be sure to add `using BaseT::RootT` to keep track of the root
      * interface class.
      * @code{.cpp}
-     * class my_prop : public simple_prop_base<int,String,100> {
+     * class my_prop : public simple_prop<int,String,100> {
      *   public:
-     *     using BaseT = simple_prop_base<int,String,100>;
+     *     using BaseT = simple_prop<int,String,100>;
      *     using typename BaseT::RootT; // used for dispatch map creation
      * ...
      * @endcode
@@ -146,24 +146,24 @@ namespace rdl {
      * @tparam T        property value type
      ************************************************************************/
     template <typename T>
-    class simple_prop_base : public prop_any_base<T> {
+    class simple_prop : public prop_any_base<T> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T>;
-        using ThisT = simple_prop_base<T>;
+        using ThisT = simple_prop<T>;
         using RootT = BaseT; // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
         using BaseT::logger;
 
-        simple_prop_base(const sys::StringT& brief_name, const T initial, long seq_capacity, bool read_only = false)
+        simple_prop(const sys::StringT& brief_name, const T initial, long seq_capacity, bool read_only = false)
             : BaseT(brief_name),
               value_(initial), seq_capacity_(seq_capacity), read_only_(read_only),
               next_index_(0), size_(0), started_(false) {
                   sequence_ = (T*)malloc(seq_capacity_ * sizeof(T));
         }
 
-        virtual ~simple_prop_base() {
+        virtual ~simple_prop() {
             free(sequence_);
         }
 
@@ -224,7 +224,7 @@ namespace rdl {
     };
 
     /************************************************************************
-     * Base to hold an array of simple_prop_base properties.
+     * Base to hold an array of simple_prop properties.
      *
      * A second 'int channel' parameter in every call selects the appropriate
      * simple_property_base channel. Create individual channel properties
@@ -234,28 +234,28 @@ namespace rdl {
      * @tparam T        property value type
      ************************************************************************/
     template <typename T>
-    class channel_prop_base : public prop_any_base<T, int> {
+    class channel_prop : public prop_any_base<T, int> {
         // TODO: use ATOMIC_BLOCK found in avr-libc <util/atomic.h> or mutex
      public:
         using BaseT = prop_any_base<T, int>;
-        using ThisT = channel_prop_base<T>;
+        using ThisT = channel_prop<T>;
         using ChanT = prop_any_base<T>; // seq_capacity_ doesn't matter for the reference
         using RooT = BaseT;    // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
         using BaseT::logger;
 
-        channel_prop_base(const sys::StringT& brief_name, int chan_capacity)
+        channel_prop(const sys::StringT& brief_name, int chan_capacity)
             : BaseT(brief_name), num_channels_(0), chan_capacity_(chan_capacity) {
                 channels_ = malloc(chan_capacity_ * sizeof(ChanT*));
         }
-        channel_prop_base(const sys::StringT& brief_name, ChanT* props[], int nchan)
+        channel_prop(const sys::StringT& brief_name, ChanT* props[], int nchan)
             : BaseT(brief_name), num_channels_(0), chan_capacity_(nchan) {
                 channels_ = (ChanT**)malloc(chan_capacity_ * sizeof(ChanT*));
             add(props, nchan);
         }
 
-        virtual ~channel_prop_base() {
+        virtual ~channel_prop() {
             free(channels_);
         }
 
