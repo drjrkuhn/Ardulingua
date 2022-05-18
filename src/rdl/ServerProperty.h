@@ -247,7 +247,7 @@ namespace rdl {
 
         channel_prop(const sys::StringT& brief_name, int chan_capacity)
             : BaseT(brief_name), num_channels_(0), chan_capacity_(chan_capacity) {
-                channels_ = malloc(chan_capacity_ * sizeof(ChanT*));
+                channels_ = (ChanT**)malloc(chan_capacity_ * sizeof(ChanT*));
         }
         channel_prop(const sys::StringT& brief_name, ChanT* props[], int nchan)
             : BaseT(brief_name), num_channels_(0), chan_capacity_(nchan) {
