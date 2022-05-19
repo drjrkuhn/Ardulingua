@@ -65,6 +65,7 @@ namespace rdl {
         T* data() { return data_; }
         size_t capacity() const { return CAPACITY; }
 
+        /** Treat this as a dynamic buffer */
         operator Buffer<T>() {
             return Buffer<T>(data_, CAPACITY);
         }
