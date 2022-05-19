@@ -11,11 +11,14 @@
     #ifdef __has_include
         #if __has_include(<utility>)
             #include <utility>
+            #define HAS_STD_MOVE 1
             #if (__cplusplus >= 201402L || _MSVC_LANG >= 201402L) // for integer_sequence
                 #define HAS_INTEGER_SEQUENCE 1
             #else
                 #define HAS_INTEGER_SEQUENCE 0
             #endif
+        #else
+            #define HAS_STD_MOVE 0
         #endif
     #endif // __has_include
 
@@ -48,5 +51,23 @@ namespace std {
     using index_sequence_for = make_index_sequence<sizeof...(T)>;
 } // namespace
     #endif // !(HAS_INTEGER_SEQUENCE)
+
+    #if !(HAS_STD_MOVE)
+namespace std {
+    template <class T>
+    struct remove_reference { typedef T type; };
+
+    template <class T>
+    struct remove_reference<T&> { typedef T type; };
+
+    template <class T>
+    struct remove_reference<T&&> { typedef T type; };
+    
+    template <typename T>
+    typename remove_reference<T>::type&& move(T&& arg) {
+        return static_cast<typename remove_reference<T>::type&&>(arg);
+    }
+} // namespace
+    #endif // !(HAS_STD_MOVE)
 
 #endif // __POLYFILLS_STD_UTILITY_H__

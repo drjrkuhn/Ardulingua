@@ -224,15 +224,16 @@ int main() {
 #elif 1
 
     #include <rdl/Array.h>
+    #include <rdl/std_utility.h> // for std::move
 
 using namespace rdl;
 
 template <typename T>
 class Test {
  public:
-    // use move constructor. note: the static_cast is effectively std::move without 
-    Test(array<T>&& buffer) : buffer_(static_cast<array<T>&&>(buffer)) {}
-    // use copy constructor
+    // buffer uses rvalue move constructor. note: the static_cast is effectively std::move without 
+    Test(array<T>&& buffer) : buffer_(std::move(buffer)) {}
+    // buffer uses copy constructor
     Test(array<T>& buffer) : buffer_(buffer) {}
     array<T> buffer() const { return buffer_; }
 
