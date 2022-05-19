@@ -231,7 +231,7 @@ using namespace rdl;
 template <typename T>
 class Test {
  public:
-    // buffer uses rvalue move constructor. note: the static_cast is effectively std::move without 
+    // buffer uses rvalue move constructor. note: the static_cast is effectively std::move without
     Test(array<T>&& buffer) : buffer_(std::move(buffer)) {}
     // buffer uses copy constructor
     Test(array<T>& buffer) : buffer_(buffer) {}
@@ -253,12 +253,18 @@ class StaticTest : public Test<T> {
         Test<T>::buffer_ = sbuffer_;
     }
 
-    operator Test<T>&() { return *dynamic_cast<Test<T>*>(this); }
-
     static_array<T, BUFSIZE> sbuffer_;
 };
 
-int main() {
+template <typename T>
+class DynamicTest : public Test<T> {
+ public:
+    DynamicTest(size_t max_size) : Test<T>(std::move(dynamic_array<T>(max_size))) {
+    }
+};
+
+int
+main() {
     using namespace std;
 
     cout << "=== Testing Dynamic and Static arrays ===" << endl;
@@ -266,26 +272,33 @@ int main() {
     {
         cout << "rdl::array<int> a0;\n";
         rdl::array<int> a0;
-        cout << "a0.valid() = "<< a0.valid() << "\n";
+        cout << "a0.valid() = " << a0.valid() << "\n";
     }
     {
         cout << "rdl::array<int> a1 = rdl::static_array<int,11>();\n";
         rdl::array<int> a1 = rdl::static_array<int, 11>();
-        cout << "a1.valid() = "<< a1.valid() << "\n";
+        cout << "a1.valid() = " << a1.valid() << "\n";
     }
     {
         cout << "rdl::array<int> a2 = rdl::dynamic_array<int>(12);\n";
         rdl::array<int> a2 = rdl::dynamic_array<int>(12);
-        cout << "a2.valid() = "<< a2.valid() << "\n";
+        cout << "a2.valid() = " << a2.valid() << "\n";
     }
-    cout << "=== Testing direct static version ===" << endl;
+    cout << "=== StaticTest ===" << endl;
     {
-        cout << "Test<int> t1 = StaticTest<int, 10>();\n";
-        Test<int> t1 = StaticTest<int, 10>();
-        t1[0]        = 10;
-        cout << t1[0] << endl;
+        cout << "Test<int> t1a = StaticTest<int, 10>();\n";
+        Test<int> t1a = StaticTest<int, 10>();
+        t1a[0]        = 10;
+        cout << t1a[0] << endl;
     }
-    cout << "=== Testing dynamic arrays as members ===" << endl;
+    cout << "=== DynamicTest ===" << endl;
+    {
+        cout << "Test<int> t1b = DynamicTest<int>(11);\n";
+        Test<int> t1b = DynamicTest<int>(11);
+        t1b[0]        = 10;
+        cout << t1b[0] << endl;
+    }
+    cout << "=== Base Test dynamic arrays as members ===" << endl;
     {
         cout << "Test<int> t2a((dynamic_array<int>(10)));\n";
         Test<int> t2a((dynamic_array<int>(10)));
@@ -301,7 +314,7 @@ int main() {
         cout << t2b[5] << endl;
     }
 
-    cout << "=== Testing static arrays as members ===" << endl;
+    cout << "=== Base Test static arrays as members ===" << endl;
     {
         cout << "Test<int> t3a((static_array<int, 10>()));\n";
         Test<int> t3a((static_array<int, 10>()));
