@@ -19,22 +19,40 @@ namespace rdl {
     template <typename T, typename SizeT = size_t>
     class array {
      public:
-        array() : data_(nullptr), max_size_(0), ref_counts(0) {
-            std::cout << "\tarray() constructor\n";
+        array() : data_(nullptr), max_size_(0), can_free_(false) {
+            std::cout << "\tarray() constructor "<<this<<"\n";
         }
-        array(SizeT max_size) : max_size_(max_size), owns_data_(true) {
-            std::cout << "\tarray(" << max_size << ") constructor\n";
-            data_ = (T*)malloc(sizeof(T) * max_size_);
+    #if 0
+        array(array& other) = delete;
+    #else
+        // since this is a copy from an lvalue, we turn off can_free_ and let other free the memory
+        array(array& other)
+            : data_(other.data_), max_size_(other.max_size_), can_free_(false) {
+            std::cout << "\tarray(" << other.data_ << ") copy constructor "<<this<<"\n";
         }
-        array(T* data, SizeT max_size) : data_(data), max_size_(max_size), owns_data_(false) {
-            std::cout << "\tarray(" << data << "," << max_size << ") constructor\n";
+    #endif
+    #if 0
+        array& operator=(const array& other) = delete;
+    #else
+        array& operator=(const array& other) {
+            std::cout << "\tarray = " << &other << " copy assignment "<<this<<"\n";
+            data_     = other.data_;
+            max_size_ = other.max_size_;
+            can_free_ = other.can_free_;
+            return *this;
         }
-        array(array<T>& other) {
+    #endif
 
-        }
+        array(array&& other) : data_(other.data_), max_size_(other.max_size_), can_free_(other.can_free_) {
+            std::cout << "\tarray(" << &other << ") move constructor "<<this<<"\n";
+            other.data_     = nullptr;
+            other.max_size_ = 0;
+            other.can_free_ = false;
+        };
+
         ~array() {
-            std::cout << "\t~array() destructor: owns_data_:" << owns_data_ << ", data_:" << data_ << "\n";
-            if (owns_data_ && data_ != nullptr) free(data_);
+            std::cout << "\t~array() destructor: can_free_:" << can_free_ << ", data_:" << data_ << " this:"<<this<<"\n";
+            if (can_free_ && data_ != nullptr) free(data_);
         }
 
         bool valid() { return data_ != nullptr; }
@@ -47,9 +65,12 @@ namespace rdl {
         SizeT max_size() const { return max_size_; }
 
      protected:
+        array(T* data, SizeT max_size, bool can_free) : data_(data), max_size_(max_size), can_free_(can_free) {
+            std::cout << "\tarray(" << data << "," << max_size << "," << can_free << ") constructor "<<this<<"\n";
+        }
         T* data_;
         SizeT max_size_;
-        SizeT ref_counts_;
+        bool can_free_;
     };
 
     /**
@@ -79,16 +100,35 @@ namespace rdl {
     template <typename T, size_t CAPACITY, typename SizeT = size_t>
     class static_array : public array<T, SizeT> {
      public:
-        static_array() : array<T, SizeT>(staticdata_, CAPACITY) {
-            std::cout << "\tstatic_array<" << CAPACITY << ">() constructor\n";
+        using BaseT = array<T, SizeT>;
+        static_array() : BaseT(staticdata_, CAPACITY, false) {
+            std::cout << "\tstatic_array<" << CAPACITY << ">() constructor "<<this<<"\n";
         }
         /** Treat this as a dynamic array */
-        operator array<T>() {
-            return array<T>(staticdata_, CAPACITY);
+        operator BaseT&() {
+            std::cout << "\tstatic_array<" << CAPACITY << ">::operator array<>() cast "<<this<<"\n";
+            return BaseT(staticdata_, CAPACITY, false);
         }
 
      protected:
         T staticdata_[CAPACITY];
+    };
+
+    template <typename T, typename SizeT = size_t>
+    class dynamic_array : public array<T, SizeT> {
+     public:
+        using BaseT = array<T, SizeT>;
+        dynamic_array(SizeT max_size) : BaseT(nullptr, max_size, true) {
+            std::cout << "\tdynamic_array<" << max_size << ">() constructor "<<this<<"\n";
+            BaseT::data_ = (T*)malloc(max_size * sizeof(T));
+        }
+        /** Treat this as a dynamic array */
+        operator BaseT&() {
+            std::cout << "\tdynamic_array::operator array<>() cast "<<this<<"\n";
+            return dynamic_cast<BaseT&>(*this);
+        }
+
+     protected:
     };
 }
 

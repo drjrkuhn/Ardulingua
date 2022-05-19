@@ -230,7 +230,10 @@ using namespace rdl;
 template <typename T>
 class Test {
  public:
-    Test(array<T> buffer) : buffer_(buffer) {}
+    // use move constructor. note: the static_cast is effectively std::move without 
+    Test(array<T>&& buffer) : buffer_(static_cast<array<T>&&>(buffer)) {}
+    // use copy constructor
+    Test(array<T>& buffer) : buffer_(buffer) {}
     array<T> buffer() const { return buffer_; }
 
     T& operator[](size_t idx) { return buffer_[idx]; }
@@ -245,6 +248,7 @@ template <typename T, size_t BUFSIZE>
 class StaticTest : public Test<T> {
  public:
     StaticTest() : Test<T>() {
+        // sbuffer_ not instantiated until after the base class
         Test<T>::buffer_ = sbuffer_;
     }
 
@@ -256,29 +260,60 @@ class StaticTest : public Test<T> {
 int main() {
     using namespace std;
 
-    cout << "=== Testing Template specialization ===" << endl;
+    cout << "=== Testing Dynamic and Static arrays ===" << endl;
 
+    {
+        cout << "rdl::array<int> a0;\n";
+        rdl::array<int> a0;
+        cout << "a0.valid() = "<< a0.valid() << "\n";
+    }
+    {
+        cout << "rdl::array<int> a1 = rdl::static_array<int,11>();\n";
+        rdl::array<int> a1 = rdl::static_array<int, 11>();
+        cout << "a1.valid() = "<< a1.valid() << "\n";
+    }
+    {
+        cout << "rdl::array<int> a2 = rdl::dynamic_array<int>(12);\n";
+        rdl::array<int> a2 = rdl::dynamic_array<int>(12);
+        cout << "a2.valid() = "<< a2.valid() << "\n";
+    }
+    cout << "=== Testing direct static version ===" << endl;
     {
         cout << "Test<int> t1 = StaticTest<int, 10>();\n";
         Test<int> t1 = StaticTest<int, 10>();
         t1[0]        = 10;
         cout << t1[0] << endl;
     }
+    cout << "=== Testing dynamic arrays as members ===" << endl;
+    {
+        cout << "Test<int> t2a((dynamic_array<int>(10)));\n";
+        Test<int> t2a((dynamic_array<int>(10)));
+        t2a[5] = 20;
+        cout << t2a[5] << endl;
+    }
     {
         cout << "rdl::array<int> buf2(10);\n";
-        rdl::array<int> buf2(10);
-        cout << "Test<int> t2(buf2);\n";
-        Test<int> t2(buf2);
-        t2[5] = 20;
-        cout << t2[5] << endl;
+        rdl::array<int> buf2 = dynamic_array<int>(10);
+        cout << "Test<int> t2b((dynamic_array<int>(10)));\n";
+        Test<int> t2b(buf2);
+        t2b[5] = 20;
+        cout << t2b[5] << endl;
+    }
+
+    cout << "=== Testing static arrays as members ===" << endl;
+    {
+        cout << "Test<int> t3a((static_array<int, 10>()));\n";
+        Test<int> t3a((static_array<int, 10>()));
+        t3a[6] = 60;
+        cout << t3a[6] << endl;
     }
     {
         cout << "static_array<int, 10> buf3;\n";
         static_array<int, 10> buf3;
-        cout << "Test<int> t3(buf3);\n";
-        Test<int> t3(buf3);
-        t3[6] = 60;
-        cout << t3[6] << endl;
+        cout << "Test<int> t3b((static_array<int, 10>()));\n";
+        Test<int> t3b(buf3);
+        t3b[6] = 60;
+        cout << t3b[6] << endl;
     }
     return 0;
 }
