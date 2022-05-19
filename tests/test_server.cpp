@@ -39,7 +39,7 @@ rdl::simple_prop<double> bar3("bar3", 4.4f, 32);
 
 decltype(bar0)::RootT* all_bars[] = {&bar0, &bar1, &bar2, &bar3};
 
-rdl::channel_prop<double> bars("bar", all_bars, 4);
+rdl::channel_prop<double> bars("bar", all_bars, 4, 4);
 
 
 // std::stringstream ss_toserver;
