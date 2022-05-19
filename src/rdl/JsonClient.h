@@ -14,6 +14,7 @@
     #include "sys_StringT.h"
     #include "sys_timing.h"
     #include <ArduinoJson.h>
+    #include <assert.h>
 
 namespace rdl {
 
@@ -21,15 +22,16 @@ namespace rdl {
      * CLIENT
      ***********************************************************************/
     template <class KeysT, size_t BUFSIZE>
-    class json_client : protocol_base<KeysT> {
+    class json_client : protected protocol_base<KeysT> {
      public:
         using BaseT = protocol_base<KeysT>;
         using BaseT::logger;
 
         json_client(sys::StreamT& istream, sys::StreamT& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
-              nextid_(1) {
+            : BaseT(istream, ostream, timeout_ms, retry_delay_ms), nextid_(1), static_buffer_() {
+            // MUST wait to initialize buffer until after static_buffer creation
+            BaseT::buffer_ = static_buffer_;
         }
 
         template <typename... PARAMS>
@@ -156,6 +158,7 @@ namespace rdl {
 
         template <typename... PARAMS>
         int call_impl(const char* method, long msg_id, PARAMS... args) {
+            assert(buffer_.valid());
             int last_err = ERROR_OK;
             size_t msgsize;
             StaticJsonDocument<svc::JDOC_SIZE> msg;
@@ -169,41 +172,15 @@ namespace rdl {
             return ERROR_OK;
         }
 
-    #if 0
         int read_reply(size_t& msgsize) {
-            unsigned long starttime = sys::millis();
-            unsigned long endtime = starttime + timeout_ms_;
-            unsigned long time;
-            msgsize        = 0;
-            while ((time = sys::millis()) < endtime) {
-                if (istream_.available() > 0) {
-                    msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
-                    DCS_BLK(logger_->print("CLIENT << "); logger_->print_escaped(buffer_.data(), msgsize, "'"); logger_->println());
-                    if (msgsize > 0) {
-                        DCS_BLK(logger_->print("CLIENT read_reply found"));
-                        DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-                        return ERROR_OK;
-                    }
-                }
-                if (retry_delay_ms_ > 0) {
-                    sys::delay(retry_delay_ms_);
-                } else {
-                    sys::yield();
-                }
-            }
-            DCS_BLK(logger_->print("CLIENT read_reply TIMEOUT"));
-            DCS_BLK(logger_->print("\ttime ("); logger_->print(sys::millis() - starttime); logger_->println(" ms)"));
-            return ERROR_JSON_TIMEOUT;
-        }
-    #else
-        int read_reply(size_t& msgsize) {
+            assert(buffer_.valid());
             if (istream_.available() == 0) {
                 // Let the caller deal with timeouts
                 return ERROR_JSON_NO_REPLY;
             }
             DCS(unsigned long starttime = sys::millis());
 
-            msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
+            msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.max_size());
             DCS_BLK(logger_->print("CLIENT << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
             if (msgsize > 0) {
                 DCS_BLK(logger_->print("CLIENT read_reply found"));
@@ -215,8 +192,6 @@ namespace rdl {
             return ERROR_JSON_INVALID_REPLY;
         }
 
-    #endif
-
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
@@ -224,7 +199,7 @@ namespace rdl {
         using BaseT::retry_delay_ms_;
         using BaseT::logger_;
         long nextid_;
-        uint8_t buffer_data_[BUFSIZE];
+        static_array<uint8_t, BUFSIZE> static_buffer_;
     };
 
 } // namespace

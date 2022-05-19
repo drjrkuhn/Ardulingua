@@ -1,5 +1,5 @@
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <string>
 
 #if 0
@@ -223,12 +223,63 @@ int main() {
 
 #elif 1
 
+    #include <rdl/Array.h>
+
+using namespace rdl;
+
+template <typename T>
+class Test {
+ public:
+    Test(array<T> buffer) : buffer_(buffer) {}
+    array<T> buffer() const { return buffer_; }
+
+    T& operator[](size_t idx) { return buffer_[idx]; }
+    const T& operator[](size_t idx) const { return buffer_[idx]; }
+
+ protected:
+    Test() : buffer_() {}
+    array<T> buffer_;
+};
+
+template <typename T, size_t BUFSIZE>
+class StaticTest : public Test<T> {
+ public:
+    StaticTest() : Test<T>() {
+        Test<T>::buffer_ = sbuffer_;
+    }
+
+    operator Test<T>&() { return *dynamic_cast<Test<T>*>(this); }
+
+    static_array<T, BUFSIZE> sbuffer_;
+};
 
 int main() {
     using namespace std;
 
     cout << "=== Testing Template specialization ===" << endl;
-    
+
+    {
+        cout << "Test<int> t1 = StaticTest<int, 10>();\n";
+        Test<int> t1 = StaticTest<int, 10>();
+        t1[0]        = 10;
+        cout << t1[0] << endl;
+    }
+    {
+        cout << "rdl::array<int> buf2(10);\n";
+        rdl::array<int> buf2(10);
+        cout << "Test<int> t2(buf2);\n";
+        Test<int> t2(buf2);
+        t2[5] = 20;
+        cout << t2[5] << endl;
+    }
+    {
+        cout << "static_array<int, 10> buf3;\n";
+        static_array<int, 10> buf3;
+        cout << "Test<int> t3(buf3);\n";
+        Test<int> t3(buf3);
+        t3[6] = 60;
+        cout << t3[6] << endl;
+    }
     return 0;
 }
 

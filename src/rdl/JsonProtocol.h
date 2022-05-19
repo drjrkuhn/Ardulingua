@@ -3,6 +3,7 @@
 #ifndef __JSONPROTOCOL_H__
     #define __JSONPROTOCOL_H__
 
+    #include "Array.h"
     #include "JsonDelegate.h"
     #include "JsonError.h"
     #include "Logger.h"
@@ -13,6 +14,7 @@
     #include "sys_StringT.h"
     #include "sys_timing.h"
     #include <ArduinoJson.h>
+    #include <assert.h>
 
     #define JSONRPC_USE_SHORT_KEYS 1
 // #define JSONRPC_USE_MSGPACK 1
@@ -167,6 +169,7 @@ namespace rdl {
         constexpr size_t JDOC_SIZE    = JSON_OBJECT_SIZE(3) + JSON_ARRAY_SIZE(MAX_PARAMETERS);
         constexpr size_t JRESULT_SIZE = JSON_OBJECT_SIZE(1);
 
+    #if 0
         class buffer {
          public:
             buffer(uint8_t* data, size_t size) : data_(data), size_(size) {}
@@ -177,7 +180,7 @@ namespace rdl {
             uint8_t* data_;
             size_t size_;
         };
-
+    #endif
     };
 
     #define SERVER_COL "\t\t\t\t"
@@ -194,14 +197,6 @@ namespace rdl {
         static constexpr const char* key_id() noexcept { return KeysT::RK_ID; }
         static constexpr const char* key_result() noexcept { return KeysT::RK_RESULT; }
         static constexpr const char* key_error() noexcept { return KeysT::RK_ERROR; }
-
-        protocol_base(sys::StreamT& istream, sys::StreamT& ostream, uint8_t* buffer_data, size_t buffer_size,
-                      unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
-                      unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : istream_(istream), ostream_(ostream), buffer_(buffer_data, buffer_size), logger_(no_logger()) {
-            timeout_ms_     = timeout_ms;
-            retry_delay_ms_ = retry_delay_ms;
-        }
 
         sys::PrintT* logger() { return logger_; }
 
@@ -227,6 +222,7 @@ namespace rdl {
         // SEVER_METHOD
         /** Reply with return value or possible error */
         int serialize_reply(JsonDocument& msgdoc, size_t& msgsize, const int id, JsonVariant result, int error_code) {
+            assert(buffer_.valid());
             // serialize the message
             if (error_code != ERROR_OK) {
                 msgdoc[key_error()] = error_code;
@@ -235,11 +231,11 @@ namespace rdl {
             }
             msgdoc[key_id()] = id;
             // serialize the message
-            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
+            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.max_size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
             DCS_BLK(logger_->print(SERVER_COL "\tserialized"); println(*logger_, msgdoc));
-            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -248,17 +244,18 @@ namespace rdl {
         // SERVER_METHOD
         /** Reply with no return (void) but possible error */
         int serialize_reply(JsonDocument& msgdoc, size_t& msgsize, const int id, int error_code) {
+            assert(buffer_.valid());
             // serialize the message
             if (error_code != ERROR_OK) {
                 msgdoc[key_error()] = error_code;
             }
             msgdoc[key_id()] = id;
             // serialize the message
-            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
+            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.max_size());
             if (msgsize == 0)
                 return ERROR_JSON_INTERNAL_ERROR;
             DCS_BLK(logger_->print(SERVER_COL "\tserialized"); println(*logger_, msgdoc));
-            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -266,8 +263,9 @@ namespace rdl {
 
         // SERVER_METHOD
         int deserialize_call(JsonDocument& msgdoc, size_t msgsize, sys::StringT& method, int& id, JsonArray& args) {
+            assert(buffer_.valid());
             // slip decode the message
-            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             // deserialize the message
@@ -278,7 +276,7 @@ namespace rdl {
             if (!msgdoc.containsKey(key_method()))
                 return ERROR_JSON_INVALID_REQUEST;
             JsonVariant jmethod = msgdoc[key_method()];
-            method = jmethod.as<sys::StringT>();
+            method              = jmethod.as<sys::StringT>();
             if (!msgdoc.containsKey(key_params()))
                 return ERROR_JSON_INVALID_REQUEST;
             args = msgdoc[key_params()];
@@ -290,6 +288,7 @@ namespace rdl {
         // CLIENT METHOD
         template <typename... PARAMS>
         int serialize_call(JsonDocument& msgdoc, size_t& msgsize, sys::StringT method, const int id, PARAMS... args) {
+            assert(buffer_.valid());
             // serialize the message
             msgdoc[key_method()] = method;
             JsonArray params     = msgdoc.createNestedArray(key_params());
@@ -299,11 +298,11 @@ namespace rdl {
             if (id >= 0)
                 msgdoc[key_id()] = id; // request reply
             // slip-encode message
-            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.size());
+            msgsize = serializeMessage(msgdoc, buffer_.data(), buffer_.max_size());
             if (msgsize == 0)
                 return ERROR_JSON_ENCODING_ERROR;
             DCS_BLK(logger_->print("\tserialized "); println(*logger_, msgdoc));
-            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_encoder::encode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_ENCODING_ERROR;
             return ERROR_OK;
@@ -312,8 +311,9 @@ namespace rdl {
         // CLIENT METHOD
         template <typename RTYPE>
         int deserialize_reply(JsonDocument& msgdoc, size_t msgsize, long msg_id, RTYPE& ret) {
+            assert(buffer_.valid());
             // decode message
-            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
@@ -339,8 +339,9 @@ namespace rdl {
 
         // CLIENT METHOD
         int deserialize_reply(JsonDocument& msgdoc, size_t msgsize, long msg_id) {
+            assert(buffer_.valid());
             // decode message
-            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.size(), buffer_.data(), msgsize);
+            msgsize = slip_null_decoder::decode(buffer_.data(), buffer_.max_size(), buffer_.data(), msgsize);
             if (msgsize == 0)
                 return ERROR_SLIP_DECODING_ERROR;
             DeserializationError derr = deserializeMessage(msgdoc, buffer_.data(), msgsize);
@@ -356,6 +357,14 @@ namespace rdl {
         }
 
      protected:
+        protocol_base(sys::StreamT& istream, sys::StreamT& ostream,
+                      unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
+                      unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
+            : istream_(istream), ostream_(ostream), logger_(no_logger()) {
+            timeout_ms_     = timeout_ms;
+            retry_delay_ms_ = retry_delay_ms;
+        }
+
         static sys::PrintT* no_logger() {
             static Null_Print null_printer;
             return &null_printer;
@@ -363,7 +372,7 @@ namespace rdl {
 
         sys::StreamT& istream_;
         sys::StreamT& ostream_;
-        svc::buffer buffer_;
+        array<uint8_t> buffer_; // should be set in derived constructor
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
         sys::PrintT* logger_;

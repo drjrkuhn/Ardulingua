@@ -14,6 +14,7 @@
     #include "sys_StringT.h"
     #include "sys_timing.h"
     #include <ArduinoJson.h>
+    #include <assert.h>
 
 namespace rdl {
 
@@ -28,18 +29,20 @@ namespace rdl {
 
         json_server(sys::StreamT& istream, sys::StreamT& ostream, MapT& map, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
                     unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : BaseT(istream, ostream, buffer_data_, BUFSIZE, timeout_ms, retry_delay_ms),
-              dispatch_map_(map) {
+            : BaseT(istream, ostream, timeout_ms, retry_delay_ms), dispatch_map_(map), static_buffer_() {
+            // MUST wait to initialize buffer until after static_buffer creation
+            BaseT::buffer_ = static_buffer_;
         }
 
         int check_messages() {
+            assert(buffer_.valid());
             size_t available = istream_.available();
             if (available == 0) {
                 // std::cout << ".";
                 return ERROR_OK;
             }
             // read message
-            size_t msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.size());
+            size_t msgsize = istream_.readBytesUntil(slip_std_codes::SLIP_END, buffer_.data(), buffer_.max_size());
             DCS_BLK(logger_->print(SERVER_COL "SERVER << "); print_escaped(*logger_, buffer_.data(), msgsize, "'"); logger_->println());
             if (msgsize == 0)
                 return ERROR_JSON_TIMEOUT;
@@ -100,7 +103,8 @@ namespace rdl {
         using BaseT::retry_delay_ms_;
         using BaseT::logger_;
         MapT& dispatch_map_;
-        uint8_t buffer_data_[BUFSIZE];
+
+        static_array<uint8_t, BUFSIZE> static_buffer_;
     };
 
 } // namespace
