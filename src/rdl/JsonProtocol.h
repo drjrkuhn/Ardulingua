@@ -3,7 +3,7 @@
 #ifndef __JSONPROTOCOL_H__
     #define __JSONPROTOCOL_H__
 
-    #include "Array.h"
+    #include "Arraybuf.h"
     #include "JsonDelegate.h"
     #include "JsonError.h"
     #include "Logger.h"
@@ -360,9 +360,13 @@ namespace rdl {
         protocol_base(sys::StreamT& istream, sys::StreamT& ostream,
                       unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
                       unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : istream_(istream), ostream_(ostream), logger_(no_logger()) {
+            : istream_(istream), ostream_(ostream), logger_(no_logger()), buffer_() {
             timeout_ms_     = timeout_ms;
             retry_delay_ms_ = retry_delay_ms;
+        }
+
+        void buffer(arraybuf<uint8_t>&& rval_buffer) {
+            buffer_ = std::move(rval_buffer);
         }
 
         static sys::PrintT* no_logger() {
@@ -372,7 +376,7 @@ namespace rdl {
 
         sys::StreamT& istream_;
         sys::StreamT& ostream_;
-        array<uint8_t> buffer_; // should be set in derived constructor
+        arraybuf<uint8_t> buffer_; // should be set in derived constructor
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
         sys::PrintT* logger_;

@@ -19,27 +19,27 @@ namespace rdl {
      * @code{.cpp}
      * // Primary use cases. Uses move constructor.
      * // Final arraybuf responsible for freeing memory.
-     * 
+     *
      * arraybuf<long> sample_1s = static_arraybuf<long, 100>();
-     * 
+     *
      * arraybuf<long> sample_1d = dynamic_arraybuf<long>(100);
      *
      * // Alternative use case. Uses copy constructor.
      * // Original xxx_arraybuf responsible for freeing memory.
-     * 
+     *
      * static_arraybuf<long, 100> b2s;
      * arraybuf<long> sample_2s = b2s;
-     * 
+     *
      * dynamic_arraybuf<long> b2d(100);
      * arraybuf<long> sample_2d = b2d;
      *
      * // Alternative use case. Uses move assignment.
      * // Final arraybuf responsible for freeing memory.
-     * 
+     *
      * arraybuf<long> sample_3s;
      * static_arraybuf<long, 100> b3s;
      * sample_3s = std::move(b3s);
-     * 
+     *
      * arraybuf<long> sample_3d;
      * dynamic_arraybuf<long> b3d(100);
      * sample_3d = std::move(b3d);
@@ -50,17 +50,20 @@ namespace rdl {
     template <typename T, typename SizeT = size_t>
     class arraybuf {
      public:
-        arraybuf() : data_(nullptr), max_size_(0), can_free_(false) {
-            std::cout << "\tarray() constructor " << this << "\n";
-        }
-        // since this is a copy from an lvalue, we turn off can_free_ and let other free the memory
-        arraybuf(arraybuf& lval_other)
-            : arraybuf(lval_other.data_, lval_other.max_size_, false) {
-            std::cout << "\tarray(" << &lval_other << ") copy constructor " << this << "\n";
-        }
+        /** Default constructor for empty arraybuf. Use valid() to test. */
+        arraybuf() : data_(nullptr), max_size_(0), can_free_(false) {}
+        /** lvalue copy constructor. Turn off can_free_ and let other lvalue free the memory. */
+        arraybuf(arraybuf& lval_other) : arraybuf(lval_other.data_, lval_other.max_size_, false) {}
+        /** rvalue move constructor. */
+        arraybuf(arraybuf&& rval_other) : arraybuf(rval_other.data_, rval_other.max_size_, rval_other.can_free_) {
+            rval_other.data_     = nullptr;
+            rval_other.max_size_ = 0;
+            rval_other.can_free_ = false;
+        };
+        // NO COPY ASSIGNMENT - must use move assignment
         arraybuf& operator=(const arraybuf& lval_other) = delete;
-        arraybuf& operator                              =(arraybuf&& rval_other) {
-            std::cout << "\tarray = " << &rval_other << " move assignment " << this << "\n";
+        /** rvalue move assignment. */
+        arraybuf& operator=(arraybuf&& rval_other) {
             data_                = rval_other.data_;
             max_size_            = rval_other.max_size_;
             can_free_            = rval_other.can_free_;
@@ -69,18 +72,10 @@ namespace rdl {
             rval_other.can_free_ = false;
             return *this;
         }
-        arraybuf(arraybuf&& rval_other) : arraybuf(rval_other.data_, rval_other.max_size_, rval_other.can_free_) {
-            std::cout << "\tarray(" << &rval_other << ") move constructor " << this << "\n";
-            rval_other.data_     = nullptr;
-            rval_other.max_size_ = 0;
-            rval_other.can_free_ = false;
-        };
-
+        /** See copy and move constructors and assignments for rules on who frees buffer */
         ~arraybuf() {
-            std::cout << "\t~arraybuf() destructor: can_free_:" << can_free_ << ", data_:" << data_ << " this:" << this << "\n";
             if (can_free_ && data_ != nullptr) free(data_);
         }
-
         /** Array access convenience operators (unsafe). */
         T& operator[](size_t idx) { return data_[idx]; }
         /** Array access convenience operators (unsafe). */
@@ -93,12 +88,10 @@ namespace rdl {
         bool valid() { return data_ != nullptr; }
 
      protected:
-        arraybuf(T* data, SizeT max_size, bool can_free) : data_(data), max_size_(max_size), can_free_(can_free) {
-            std::cout << "\tarray(" << data << "," << max_size << "," << can_free << ") constructor " << this << "\n";
-        }
+        arraybuf(T* data, SizeT max_size, bool can_free) : data_(data), max_size_(max_size), can_free_(can_free) {}
         T* data_;
         SizeT max_size_;
-        mutable bool can_free_;
+        bool can_free_;
     };
 
     /**
@@ -113,9 +106,8 @@ namespace rdl {
     class static_arraybuf : public arraybuf<T, SizeT> {
      public:
         using BaseT = arraybuf<T, SizeT>;
-        static_arraybuf() : BaseT(staticdata_, CAPACITY, false) {
-            std::cout << "\tstatic_array<" << CAPACITY << ">() constructor " << this << "\n";
-        }
+        /** buffer is allocated as a big class member. */
+        static_arraybuf() : BaseT(staticdata_, CAPACITY, false) {}
 
      protected:
         T staticdata_[CAPACITY];
@@ -132,17 +124,10 @@ namespace rdl {
     class dynamic_arraybuf : public arraybuf<T, SizeT> {
      public:
         using BaseT = arraybuf<T, SizeT>;
+        /** Buffer is dynamicall allocated. Base method responsible for freeing. */
         dynamic_arraybuf(SizeT max_size) : BaseT(nullptr, max_size, true) {
-            std::cout << "\tdynamic_array<" << max_size << ">() constructor " << this << "\n";
             BaseT::data_ = (T*)malloc(max_size * sizeof(T));
         }
-        // /** Treat this as a dynamic arraybuf */
-        // operator BaseT&() {
-        //     std::cout << "\tdynamic_array::operator arraybuf<>() cast "<<this<<"\n";
-        //     return dynamic_cast<BaseT&>(*this);
-        // }
-
-     protected:
     };
 }
 

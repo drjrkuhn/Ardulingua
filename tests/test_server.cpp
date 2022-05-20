@@ -48,17 +48,13 @@ rdl::channel_prop<double> bars("bar", all_bars, 4, 4);
 sys::Stream_StringT toserver;
 sys::Stream_StringT fromserver;
 
-using ServerT = json_server<MapT, jsonrpc_default_keys, 512>;
-using ClientT = json_client<jsonrpc_default_keys, 512>;
-
 ////////// SERVER CODE /////////////
 
 #define SERVER_COL "\t\t\t\t"
 
-ServerT server(toserver, fromserver, dispatch_map);
+json_server<MapT, jsonrpc_default_keys> server = static_json_server<MapT, jsonrpc_default_keys, 512> (toserver, fromserver, dispatch_map);
 
 // rdl::debug_type<ClientT> __;
-// rdl::debug_type<ServerT>();
 // rdl::debug_type<decltype(server)>(server);
 
 int setup_server() {
@@ -123,7 +119,7 @@ int stop_server() {
 
 ////////// CLIENT CODE /////////////
 
-ClientT client(fromserver, toserver);
+json_client<jsonrpc_default_keys> client = static_json_client<jsonrpc_default_keys, 512>(fromserver, toserver);
 
 int main() {
 

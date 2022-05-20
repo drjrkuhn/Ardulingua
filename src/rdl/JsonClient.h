@@ -21,18 +21,11 @@ namespace rdl {
     /************************************************************************
      * CLIENT
      ***********************************************************************/
-    template <class KeysT, size_t BUFSIZE>
+    template <class KeysT>
     class json_client : protected protocol_base<KeysT> {
      public:
         using BaseT = protocol_base<KeysT>;
         using BaseT::logger;
-
-        json_client(sys::StreamT& istream, sys::StreamT& ostream, unsigned long timeout_ms = JSONRPC_DEFAULT_TIMEOUT,
-                    unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : BaseT(istream, ostream, timeout_ms, retry_delay_ms), nextid_(1), static_buffer_() {
-            // MUST wait to initialize buffer until after static_buffer creation
-            BaseT::buffer_ = static_buffer_;
-        }
 
         template <typename... PARAMS>
         int call(const char* method, PARAMS... args) {
@@ -192,6 +185,12 @@ namespace rdl {
             return ERROR_JSON_INVALID_REPLY;
         }
 
+        json_client(sys::StreamT& istream, sys::StreamT& ostream,
+                    unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
+                    unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
+            : BaseT(istream, ostream, timeout_ms, retry_delay_ms), nextid_(1) {
+        }
+
         using BaseT::istream_;
         using BaseT::ostream_;
         using BaseT::buffer_;
@@ -199,7 +198,39 @@ namespace rdl {
         using BaseT::retry_delay_ms_;
         using BaseT::logger_;
         long nextid_;
-        static_arraybuf<uint8_t, BUFSIZE> static_buffer_;
+    };
+
+    /************************************************************************
+     * json_client with static (non-heap) buffer storage
+     ***********************************************************************/
+    template <class KeysT, size_t BUFFER_SIZE>
+    class static_json_client : public json_client<KeysT> {
+     public:
+        static_json_client(sys::StreamT& istream, sys::StreamT& ostream,
+                           unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
+                           unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
+            : json_client<KeysT>(istream, ostream, timeout_ms, retry_delay_ms) {
+            // MUST wait to initialize buffer until after static_buffer creation
+            protocol_base<KeysT>::buffer_ = std::move(static_buffer_);
+        }
+
+     protected:
+        static_arraybuf<uint8_t, BUFFER_SIZE> static_buffer_;
+    };
+
+    /************************************************************************
+     * json_client with dynamic (heap) buffer storage
+     ***********************************************************************/
+    template <class KeysT>
+    class dynamic_json_client : public json_client<KeysT> {
+     public:
+        dynamic_json_client(sys::StreamT& istream, sys::StreamT& ostream, size_t buffer_size,
+                            unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
+                            unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
+            : json_client<KeysT>(istream, ostream, timeout_ms, retry_delay_ms) {
+            // MUST wait to initialize buffer until after static_buffer creation
+            protocol_base<KeysT>::buffer_ = std::move(dynamic_arraybuf<uint8_t>(buffer_size));
+        }
     };
 
 } // namespace
