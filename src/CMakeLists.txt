@@ -6,7 +6,7 @@ message("CORELIB_NAME = ${CORELIB_NAME}")
 add_library(${CORELIB_NAME} INTERFACE 
     Ardulingua.h
     rdl/Common.h
-    rdl/Array.h
+    rdl/Arraybuf.h
     rdl/Delegate.h 
     rdl/JsonDelegate.h 
     rdl/JsonProtocol.h 

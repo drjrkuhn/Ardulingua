@@ -104,7 +104,7 @@ namespace rdl {
         using BaseT::logger_;
         MapT& dispatch_map_;
 
-        static_array<uint8_t, BUFSIZE> static_buffer_;
+        static_arraybuf<uint8_t, BUFSIZE> static_buffer_;
     };
 
 } // namespace

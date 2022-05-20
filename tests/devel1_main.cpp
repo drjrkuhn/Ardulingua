@@ -223,7 +223,7 @@ int main() {
 
 #elif 1
 
-    #include <rdl/Array.h>
+    #include <rdl/Arraybuf.h>
     #include <rdl/std_utility.h> // for std::move
 
 using namespace rdl;
@@ -232,17 +232,17 @@ template <typename T>
 class Test {
  public:
     // buffer uses rvalue move constructor. note: the static_cast is effectively std::move without
-    Test(array<T>&& buffer) : buffer_(std::move(buffer)) {}
+    Test(arraybuf<T>&& rval_buffer) : buffer_(std::move(rval_buffer)) {}
     // buffer uses copy constructor
-    Test(array<T>& buffer) : buffer_(buffer) {}
-    array<T> buffer() const { return buffer_; }
+    Test(arraybuf<T>& lval_buffer) : buffer_(lval_buffer) {}
+    arraybuf<T>& buffer() const { return buffer_; }
 
     T& operator[](size_t idx) { return buffer_[idx]; }
     const T& operator[](size_t idx) const { return buffer_[idx]; }
 
  protected:
     Test() : buffer_() {}
-    array<T> buffer_;
+    arraybuf<T> buffer_;
 };
 
 template <typename T, size_t BUFSIZE>
@@ -250,84 +250,129 @@ class StaticTest : public Test<T> {
  public:
     StaticTest() : Test<T>() {
         // sbuffer_ not instantiated until after the base class
-        Test<T>::buffer_ = sbuffer_;
+        std::cout << "StaticTest() constructor\n";
+        Test<T>::buffer_ = std::move(sbuffer_);
     }
 
-    static_array<T, BUFSIZE> sbuffer_;
+    static_arraybuf<T, BUFSIZE> sbuffer_;
 };
 
 template <typename T>
 class DynamicTest : public Test<T> {
  public:
-    DynamicTest(size_t max_size) : Test<T>(std::move(dynamic_array<T>(max_size))) {
+    DynamicTest(size_t max_size) : Test<T>(std::move(dynamic_arraybuf<T>(max_size))) {
     }
 };
 
-int
-main() {
+    #define QPRINT_(line) std::cout << #line
+    #define QPRINTLN_(line) std::cout << #line << std::endl
+    #define QRUN(line)   \
+        QPRINTLN_(line); \
+        line;
+    #define QRESULT(operation) \
+        QPRINT_(operation);    \
+        std::cout << " -> " << operation << std::endl;
+
+int main() {
+
     using namespace std;
 
-    cout << "=== Testing Dynamic and Static arrays ===" << endl;
+    cout << "##### Running sample arraybuf code ######" << endl;
+    {
+        using namespace rdl;
+        QPRINTLN_(Primary use cases. Uses move constructor.);
+        QPRINTLN_(Final arraybuf responsible for freeing memory.);
+        {arraybuf<long> sample_1s = static_arraybuf<long, 100>();}
+        {arraybuf<long> sample_1d = dynamic_arraybuf<long>(100);}
 
+        QPRINTLN_(Alternative use case. Uses copy constructor.);
+        QPRINTLN_(Original xxx_arraybuf responsible for freeing memory.);
+        {static_arraybuf<long, 100> b2s;
+        arraybuf<long> sample_2s = b2s;}
+        {dynamic_arraybuf<long> b2d(100);
+        arraybuf<long> sample_2d = b2d;}
+
+        QPRINTLN_(Alternative use case. Uses move assignment.);
+        QPRINTLN_(Final arraybuf responsible for freeing memory.);
+        {arraybuf<long> sample_3s;
+        static_arraybuf<long, 100> b3s;
+        sample_3s = std::move(b3s);}
+        {arraybuf<long> sample_3d;
+        dynamic_arraybuf<long> b3d(100);
+        sample_3d = std::move(b3d);}
+    }
+
+    cout << "=== Testing Dynamic and Static arraybuf constructors ===" << endl;
     {
-        cout << "rdl::array<int> a0;\n";
-        rdl::array<int> a0;
-        cout << "a0.valid() = " << a0.valid() << "\n";
+        QRUN(rdl::arraybuf<int> a0);
+        QRESULT(a0.valid());
     }
     {
-        cout << "rdl::array<int> a1 = rdl::static_array<int,11>();\n";
-        rdl::array<int> a1 = rdl::static_array<int, 11>();
-        cout << "a1.valid() = " << a1.valid() << "\n";
+        QRUN(rdl::arraybuf<int> a1 = (rdl::static_arraybuf<int, 11>()));
+        QRESULT(a1.valid());
+        QRUN(a1[0] = 11111);
+        QRESULT(a1[0]);
     }
     {
-        cout << "rdl::array<int> a2 = rdl::dynamic_array<int>(12);\n";
-        rdl::array<int> a2 = rdl::dynamic_array<int>(12);
-        cout << "a2.valid() = " << a2.valid() << "\n";
+        QRUN(rdl::arraybuf<int> a2 = rdl::dynamic_arraybuf<int>(12));
+        QRESULT(a2.valid());
+        QRUN(a2[0] = 22222);
+        QRESULT(a2[0]);
     }
+    cout << "=== Testing Dynamic and Static arraybuf assignment ===" << endl;
+    {
+        QRUN(rdl::arraybuf<int> a1);
+        QRUN(a1 = std::move(rdl::static_arraybuf<int, 11>()));
+        QRESULT(a1.valid());
+        QRUN(a1[0] = 33333);
+        QRESULT(a1[0]);
+    }
+    {
+        QRUN(rdl::arraybuf<int> a2);
+        QRUN(a2 = std::move(rdl::dynamic_arraybuf<int>(12)));
+        QRESULT(a2.valid());
+        QRUN(a2[0] = 44444);
+        QRESULT(a2[0]);
+    }
+
+    // return 0;
     cout << "=== StaticTest ===" << endl;
     {
-        cout << "Test<int> t1a = StaticTest<int, 10>();\n";
-        Test<int> t1a = StaticTest<int, 10>();
-        t1a[0]        = 10;
-        cout << t1a[0] << endl;
+        QRUN(Test<int> t1a = (StaticTest<int, 10>{}));
+        QRUN(t1a[0] = 11111);
+        QRESULT(t1a[0]);
     }
     cout << "=== DynamicTest ===" << endl;
     {
-        cout << "Test<int> t1b = DynamicTest<int>(11);\n";
-        Test<int> t1b = DynamicTest<int>(11);
-        t1b[0]        = 10;
-        cout << t1b[0] << endl;
+        QRUN(Test<int> t1b = DynamicTest<int>(11));
+        QRUN(t1b[0] = 22222);
+        QRESULT(t1b[0]);
     }
     cout << "=== Base Test dynamic arrays as members ===" << endl;
     {
-        cout << "Test<int> t2a((dynamic_array<int>(10)));\n";
-        Test<int> t2a((dynamic_array<int>(10)));
-        t2a[5] = 20;
-        cout << t2a[5] << endl;
+        QRUN(Test<int> t2a((dynamic_arraybuf<int>(10))));
+        QRUN(t2a[0] = 33333);
+        QRESULT(t2a[0]);
     }
     {
-        cout << "rdl::array<int> buf2(10);\n";
-        rdl::array<int> buf2 = dynamic_array<int>(10);
-        cout << "Test<int> t2b((dynamic_array<int>(10)));\n";
-        Test<int> t2b(buf2);
-        t2b[5] = 20;
-        cout << t2b[5] << endl;
+        QRUN(rdl::arraybuf<int> buf2 = dynamic_arraybuf<int>(10));
+        QRUN(Test<int> t2b(buf2));
+        QRUN(t2b[0] = 44444);
+        QRESULT(t2b[0]);
     }
 
     cout << "=== Base Test static arrays as members ===" << endl;
     {
-        cout << "Test<int> t3a((static_array<int, 10>()));\n";
-        Test<int> t3a((static_array<int, 10>()));
-        t3a[6] = 60;
-        cout << t3a[6] << endl;
+        QRUN(Test<int> t3a((static_arraybuf<int, 10>())));
+        QRUN(t3a[0] = 55555);
+        QRESULT(t3a[0]);
     }
     {
-        cout << "static_array<int, 10> buf3;\n";
-        static_array<int, 10> buf3;
-        cout << "Test<int> t3b((static_array<int, 10>()));\n";
-        Test<int> t3b(buf3);
-        t3b[6] = 60;
-        cout << t3b[6] << endl;
+        cout << "rdl::static_arraybuf<int, 10> buf3;\n";
+        rdl::static_arraybuf<int, 10> buf3;
+        QRUN(Test<int> t3b(buf3));
+        QRUN(t3b[0] = 66666);
+        QRESULT(t3b[0]);
     }
     return 0;
 }

@@ -199,7 +199,7 @@ namespace rdl {
         using BaseT::retry_delay_ms_;
         using BaseT::logger_;
         long nextid_;
-        static_array<uint8_t, BUFSIZE> static_buffer_;
+        static_arraybuf<uint8_t, BUFSIZE> static_buffer_;
     };
 
 } // namespace
