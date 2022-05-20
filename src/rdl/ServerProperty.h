@@ -3,7 +3,9 @@
 #ifndef __SERVERPROPERTY_H__
     #define __SERVERPROPERTY_H__
 
+    #include "Arraybuf.h"
     #include "JsonDelegate.h"
+    #include "std_utility.h"
     #include "sys_PrintT.h"
     #include "sys_StringT.h"
 
@@ -32,7 +34,7 @@ namespace rdl {
         using RootT = prop_any_base<T, ExT...>;
 
         prop_any_base(const sys::StringT& brief_name) : brief_(brief_name), logger_(nullptr) {}
-        prop_any_base(prop_any_base& other) = default;
+        // prop_any_base(const prop_any_base& other) = default;
 
         bool operator==(const prop_any_base& other) const { return brief_ == other.brief_; }
         bool operator!=(const prop_any_base& other) const { return brief_ != other.brief_; }
@@ -156,21 +158,10 @@ namespace rdl {
         using BaseT::logger_;
         using BaseT::logger;
 
-        simple_prop(const sys::StringT& brief_name, const T initial, T* seq_buffer, long seq_capacity, bool read_only = false)
-            : BaseT(brief_name), value_(initial), read_only_(read_only), next_index_(0), size_(0), started_(false),
-              sequence_(seq_buffer), seq_capacity_(seq_capacity), own_sequence_(false) {
-        }
+        simple_prop(simple_prop<T>& lvalue)  = default;
+        simple_prop(simple_prop<T>&& rvalue) = default;
 
-        simple_prop(const sys::StringT& brief_name, const T initial, long seq_capacity, bool read_only = false)
-            : BaseT(brief_name), value_(initial), read_only_(read_only), next_index_(0), size_(0), started_(false),
-              seq_capacity_(seq_capacity), own_sequence_(true) {
-            sequence_ = (T*)malloc(seq_capacity_ * sizeof(T));
-        }
-
-        virtual ~simple_prop() {
-            if (own_sequence_)
-                free(sequence_);
-        }
+        virtual ~simple_prop() {}
 
         ////// IMPLEMENT INTERFACE //////
         virtual T get() const override {
@@ -190,7 +181,7 @@ namespace rdl {
             value_ = value;
         }
         virtual long max_size() const override {
-            return seq_capacity_;
+            return sequence_.max_size();
         }
         virtual long size() const override {
             return size_;
@@ -201,7 +192,7 @@ namespace rdl {
             return 0;
         }
         virtual void add(const T value) override {
-            if (size_ < seq_capacity_)
+            if (size_ < sequence_.max_size())
                 sequence_[size_++] = value;
         }
         virtual void start() override {
@@ -212,21 +203,46 @@ namespace rdl {
             started_ = false;
         }
         virtual bool sequencable() const override {
-            return seq_capacity_ > 0;
+            return sequence_.max_size() > 0;
         }
         virtual bool read_only() const override {
             return read_only_;
         }
 
      protected:
+        simple_prop(const sys::StringT& brief_name, const T initial, bool read_only = false)
+            : BaseT(brief_name), value_(initial), read_only_(read_only), next_index_(0),
+              size_(0), started_(false), sequence_() {
+        }
+
         T value_;
         bool read_only_;
         volatile long next_index_;
         long size_;
         volatile bool started_;
-        const long seq_capacity_;
-        bool own_sequence_;
-        T* sequence_;
+        arraybuf<T> sequence_;
+    };
+
+    template <typename T, long MAX_SEQUENCE_SIZE>
+    class static_simple_prop : public simple_prop<T> {
+     public:
+        static_simple_prop(const sys::StringT& brief_name, const T initial, bool read_only = false)
+            : simple_prop<T>(brief_name, initial, read_only) {
+            // Initialized after base class
+            simple_prop<T>::sequence_ = std::move(static_sequence_);
+        }
+
+     protected:
+        static_arraybuf<T, MAX_SEQUENCE_SIZE> static_sequence_;
+    };
+
+    template <typename T>
+    class dynamic_simple_prop : public simple_prop<T> {
+     public:
+        dynamic_simple_prop(const sys::StringT& brief_name, const T initial, long max_sequence_size, bool read_only = false)
+            : simple_prop<T>(brief_name, initial, read_only) {
+            simple_prop<T>::sequence_ = std::move(dynamic_arraybuf<T, long>(max_sequence_size));
+        }
     };
 
     /************************************************************************
@@ -245,33 +261,31 @@ namespace rdl {
      public:
         using BaseT = prop_any_base<T, int>;
         using ThisT = channel_prop<T>;
-        using ChanT = prop_any_base<T>; // seq_capacity_ doesn't matter for the reference
-        using RooT  = BaseT;            // used for dispatch map creation
+        using ChanPtrT = prop_any_base<T>*; // seq_capacity_ doesn't matter for the reference
+        using RooT  = BaseT;             // used for dispatch map creation
         using BaseT::brief_;
         using BaseT::logger_;
         using BaseT::logger;
 
-        channel_prop(const sys::StringT& brief_name, int chan_capacity)
-            : BaseT(brief_name), num_channels_(0), chan_capacity_(chan_capacity), own_channels_(true) {
-            channels_ = (ChanT**)malloc(chan_capacity_ * sizeof(ChanT*));
-        }
-        channel_prop(const sys::StringT& brief_name, ChanT** chan_buf, int chan_capacity, int nchan)
-            : BaseT(brief_name), num_channels_(nchan), channels_(chan_buf), chan_capacity_(chan_capacity), own_channels_(false) {
-        }
-
-        virtual ~channel_prop() {
-            if (own_channels_)
-                free(channels_);
+        /** Copy constructor. Can't be const because of volatile members. */
+        channel_prop(channel_prop<T>& lvalue)  = default;
+        /** Move constructor. */
+        channel_prop(channel_prop<T>&& rvalue) = default;
+        /** Create from existing fixed array of channel pointers. */
+        channel_prop(const sys::StringT& brief_name, ChanPtrT* chan_buf, int chan_buf_size)
+            : BaseT(brief_name), num_channels_(chan_buf_size), channels_(chan_buf, chan_buf_size) {
         }
 
-        int add(ChanT* prop) {
-            if (num_channels_ + 1 > chan_capacity_) return num_channels_;
+        virtual ~channel_prop() {}
+
+        int add(ChanPtrT prop) {
+            if (num_channels_ + 1 > channels_.max_size()) return num_channels_;
             channels_[num_channels_++] = prop;
             return num_channels_;
         }
 
-        int add(ChanT* props[], int nchan) {
-            if (num_channels_ + nchan > chan_capacity_) return num_channels_;
+        int add(ChanPtrT props[], int nchan) {
+            if (num_channels_ + nchan > channels_.max_size()) return num_channels_;
             for (int i = 0; i < nchan; i++)
                 add(props[i]);
             return num_channels_;
@@ -448,10 +462,33 @@ namespace rdl {
         }
 
      protected:
+        channel_prop(const sys::StringT& brief_name)
+            : BaseT(brief_name), num_channels_(0) {
+        }
+
         int num_channels_;
-        int chan_capacity_;
-        ChanT** channels_;
-        bool own_channels_;
+        arraybuf<ChanPtrT, int> channels_;
+    };
+
+    template <typename T, int MAX_CHANNELS>
+    class static_channel_prop : public channel_prop<T> {
+     public:
+        static_channel_prop(const sys::StringT& brief_name)
+            : channel_prop<T>(brief_name) {
+            channel_prop<T>::channels_ = std::move(static_channels_);
+        }
+
+     protected:
+        static_arraybuf<typename channel_prop<T>::ChanPtrT, MAX_CHANNELS, int> static_channels_;
+    };
+
+    template <typename T>
+    class dynamic_channel_prop : public channel_prop<T> {
+     public:
+        dynamic_channel_prop(const sys::StringT& brief_name, int max_channels)
+            : channel_prop<T>(brief_name) {
+            channel_prop<T>::channels_ = std::move(dynamic_arraybuf<typename channel_prop<T>::ChanPtrT, int>(max_channels));
+        }
     };
 
 };

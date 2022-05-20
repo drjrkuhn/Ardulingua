@@ -60,6 +60,10 @@ namespace rdl {
             rval_other.max_size_ = 0;
             rval_other.can_free_ = false;
         };
+
+        /** Create an arraybuf from fixed memory. Caller is responsible for freeing. */
+        arraybuf(T*& data, SizeT fixed_size) : arraybuf(data, fixed_size, false) {}
+
         // NO COPY ASSIGNMENT - must use move assignment
         arraybuf& operator=(const arraybuf& lval_other) = delete;
         /** rvalue move assignment. */

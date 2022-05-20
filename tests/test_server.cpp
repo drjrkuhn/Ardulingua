@@ -6,6 +6,7 @@
 #include <rdl/JsonClient.h>
 #include <rdl/JsonServer.h>
 #include <rdl/Logger.h>
+#include <rdl/std_utility.h>
 #include <rdl/sys_timing.h>
 #include <unordered_map>
 // #include <WString.h>
@@ -30,16 +31,16 @@ using MapT = std::unordered_map<sys::StringT, json_stub, sys::string_hash>;
 
 MapT dispatch_map;
 
-rdl::simple_prop<int> foo("foo", 1, 32);
+rdl::simple_prop<int> foo = rdl::static_simple_prop<int,32>("foo",1);
 
-rdl::simple_prop<double> bar0("bar0", 1.1f, 32);
-rdl::simple_prop<double> bar1("bar1", 2.2f, 32);
-rdl::simple_prop<double> bar2("bar2", 3.3f, 32);
-rdl::simple_prop<double> bar3("bar3", 4.4f, 32);
+rdl::simple_prop<double> bar0 = rdl::static_simple_prop<double,32>("bar0", 1.1f);
+rdl::simple_prop<double> bar1= rdl::static_simple_prop<double,32>("bar1", 2.2f);
+rdl::simple_prop<double> bar2= rdl::static_simple_prop<double,32>("bar2", 3.3f);
+rdl::simple_prop<double> bar3= rdl::static_simple_prop<double,32>("bar3", 4.4f);
 
 decltype(bar0)::RootT* all_bars[] = {&bar0, &bar1, &bar2, &bar3};
 
-rdl::channel_prop<double> bars("bar", all_bars, 4, 4);
+rdl::channel_prop<double> bars("bar", all_bars, 4);
 
 
 // std::stringstream ss_toserver;
