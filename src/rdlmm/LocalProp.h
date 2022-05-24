@@ -69,7 +69,6 @@ namespace rdlmm {
         }
 
      protected:
-
         LocalProp_Base() = default;
 
         /** Called by the properties update method */
@@ -118,6 +117,23 @@ namespace rdlmm {
             return DEVICE_OK;
         }
 
+        virtual int getMaxSequenceSize_impl(long& maxsize) const {
+            maxsize = 0;
+            return DEVICE_OK;
+        }
+
+        virtual int setSequence_impl(std::vector<sys::StringT>& sequence) {
+            return DEVICE_OK;
+        }
+
+        virtual int startSequence_impl() {
+            return DEVICE_OK;
+        }
+
+        virtual int stopSequence_impl() {
+            return DEVICE_OK;
+        }
+
      protected:
         using BaseT::isReadOnly_;
         using BaseT::cachedValue_;
@@ -156,7 +172,7 @@ namespace rdlmm {
             PropInfo<PropT> checked = propInfo;
             if (initFromCache_) {
                 checked.witoutInitialValue();
-             }
+            }
             return checked;
         }
 

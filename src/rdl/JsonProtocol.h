@@ -360,9 +360,8 @@ namespace rdl {
         protocol_base(sys::StreamT& istream, sys::StreamT& ostream,
                       unsigned long timeout_ms     = JSONRPC_DEFAULT_TIMEOUT,
                       unsigned long retry_delay_ms = JSONRPC_DEFAULT_RETRY_DELAY)
-            : istream_(istream), ostream_(ostream), logger_(no_logger()), buffer_() {
-            timeout_ms_     = timeout_ms;
-            retry_delay_ms_ = retry_delay_ms;
+            : istream_(istream), ostream_(ostream), logger_(no_logger()), buffer_(),
+            timeout_ms_(timeout_ms), retry_delay_ms_(retry_delay_ms) {
         }
 
         void buffer(arraybuf<uint8_t>&& rval_buffer) {
@@ -376,10 +375,10 @@ namespace rdl {
 
         sys::StreamT& istream_;
         sys::StreamT& ostream_;
+        sys::PrintT* logger_;
         arraybuf<uint8_t> buffer_; // should be set in derived constructor
         unsigned long timeout_ms_;
         unsigned long retry_delay_ms_;
-        sys::PrintT* logger_;
     };
 
 }; // end namespace

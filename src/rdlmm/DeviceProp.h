@@ -4,7 +4,7 @@
     #define __DEVICE_PROP__
 
     #include "../rdl/sys_StringT.h"
-    
+
     #define NOMINMAX
     #include "DevicePropHelpers.h"
     #include "PropInfo.h"
@@ -79,6 +79,14 @@ namespace rdlmm {
         /** Get the locally cached property value directly (NOT the property store value). */
         virtual int GetCachedProperty(PropT& value) const { return getCached_impl(value); }
 
+        virtual int GetMaxSequenceSize(long& maxsize) const { return getMaxSequenceSize_impl(maxsize); }
+
+        virtual int SetSequence(std::vector<sys::StringT>& sequence) { return setSequence_impl(sequence); }
+
+        virtual int StartSequence() { return startSequence_impl(); }
+
+        virtual int StopSequence() { return stopSequence_impl(); }
+
         /**
          * Get the Device that owns the property (hub or sub-device).
          * The owner device does the actual setting and getting of property values!
@@ -121,6 +129,14 @@ namespace rdlmm {
             }
             return DEVICE_OK;
         }
+
+        virtual int getMaxSequenceSize_impl(long& maxsize) const = 0;
+
+        virtual int setSequence_impl(std::vector<sys::StringT>& sequence) = 0;
+
+        virtual int startSequence_impl() = 0;
+
+        virtual int stopSequence_impl() = 0;
 
         /**
          * Allows a class to override any property info flags..

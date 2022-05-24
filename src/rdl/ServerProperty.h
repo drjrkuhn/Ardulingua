@@ -220,7 +220,7 @@ namespace rdl {
         volatile long next_index_;
         long size_;
         volatile bool started_;
-        arraybuf<T> sequence_;
+        arraybuf<T,long> sequence_;
     };
 
     template <typename T, long MAX_SEQUENCE_SIZE>
@@ -233,7 +233,7 @@ namespace rdl {
         }
 
      protected:
-        static_arraybuf<T, MAX_SEQUENCE_SIZE> static_sequence_;
+        static_arraybuf<T, MAX_SEQUENCE_SIZE,long> static_sequence_;
     };
 
     template <typename T>
@@ -241,7 +241,7 @@ namespace rdl {
      public:
         dynamic_simple_prop(const sys::StringT& brief_name, const T initial, long max_sequence_size, bool read_only = false)
             : simple_prop<T>(brief_name, initial, read_only) {
-            simple_prop<T>::sequence_ = std::move(dynamic_arraybuf<T, long>(max_sequence_size));
+            simple_prop<T>::sequence_ = std::move(dynamic_arraybuf<T,long>(max_sequence_size));
         }
     };
 

@@ -163,14 +163,13 @@ namespace rdlmm {
         using ThisT   = RemoteProp_Base<DeviceT, LocalT, RemoteT, ExT...>;
         using ActionT = MM::Action<ThisT>;
         //using StreamAdapterT = rdlmm::Stream_HubSerial<DeviceT>;
-        using KeysT     = rdl::jsonrpc_default_keys;
-        using ClientT   = rdl::json_client<KeysT, JSONRCP_BUFFER_SIZE>;
+        //using ClientT   = rdl::json_client<rdl::jsonrpc_default_keys>;
         using ExtrasT   = std::tuple<ExT...>;
         using ToRemoteT = rdl::delegate<rdl::RetT<RemoteT>, LocalT>;
         using ToLocalT  = rdl::delegate<rdl::RetT<LocalT>, RemoteT>;
 
         /*	Link the property to the device and initialize from the propInfo. */
-        virtual int create(DeviceT* device, ClientT* client, const PropInfo<LocalT>& propInfo, ExT... args) {
+        virtual int create(DeviceT* device, rdl::json_client<rdl::jsonrpc_default_keys>* client, const PropInfo<LocalT>& propInfo, ExT... args) {
             client_              = client;
             brief_               = propInfo.brief(); // copy early for get/set before createAndLinkProp()
             extra_               = std::tie(args...);
@@ -204,6 +203,15 @@ namespace rdlmm {
             return to_remote_delegate_(local);
         }
 
+        /** Set the default conversion delegate */
+        void to_remote_delegate(ToRemoteT& to_remote) {
+            to_remote_delegate_ = to_remote;
+        }
+
+        ToRemoteT& to_remote_delegate() const {
+            return to_remote_delegate_;
+        }
+
         /** 
          * Convert remote to local values.
          * 
@@ -218,21 +226,13 @@ namespace rdlmm {
             return to_local_delegate_(remote);
         }
 
-        /** Set the default conversion delegate */
-        void to_remote_delegate(ToRemoteT& to_remote) const {
-            to_remote_delegate_ = to_remote;
+        ToLocalT& to_local_delegate() const {
+            return to_local_delegate_;
         }
 
         /** Set the default conversion delegate */
         void to_local_delegate(ToLocalT& to_local) {
             to_local_delegate_ = to_local;
-        }
-
-        ToRemoteT& to_remote_delegate() const {
-            return to_remote_delegate_;
-        }
-        ToLocalT& to_local_delegate() const {
-            return to_local_delegate_;
         }
 
      protected:
@@ -300,6 +300,68 @@ namespace rdlmm {
             return DEVICE_OK;
         }
 
+        virtual int getMaxSequenceSize_impl(long& max_size) const override {
+            if (cached_max_seq_size_ < 0) {
+                int ret;
+                // IsSequenceable is called multiple times throughout a properties lifetime,
+                // often repeately. Rather than calling the remote device again and again,
+                // we ONLY get the max sequence size once and cache it.
+                // **WARNING** assumes each remote property has a static maximum sequence size
+                if ((ret = client_->call_get_tuple<long>(meth_str('^').c_str(), max_size, extras())) != DEVICE_OK) {
+                    cached_max_seq_size_ = 0;
+                    max_size             = 0;
+                    return ret;
+                } else {
+                    cached_max_seq_size_ = max_size;
+                }
+            }
+            max_size = cached_max_seq_size_;
+            return DEVICE_OK;
+        }
+
+        virtual int setSequence_impl(std::vector<sys::StringT>& sequence) override {
+            long seqsize    = static_cast<long>(sequence.size());
+            long remotesize = 0;
+            int ret;
+            // start/clear remote sequence
+            if ((ret = client_->notify_tuple(meth_str('0').c_str(), extras())) != DEVICE_OK) {
+                return ret;
+            }
+            for (int i = 0; i < seqsize; i++) {
+                // add the value
+                LocalT localv   = Parse<LocalT>(sequence[i]);
+                RemoteT remotev = to_remote(localv);
+                if ((ret = client_->notify_tuple(meth_str('+').c_str(), withextras(remotev))) != DEVICE_OK) {
+                    return ret;
+                }
+                int size = i + 1;
+                if (size % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || size == seqsize) {
+                    // verify the current size
+                    if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != DEVICE_OK) {
+                        return ret;
+                    }
+                    if (size != remotesize) {
+                        return ERR_WRITE_FAILED;
+                    }
+                }
+            }
+            return DEVICE_OK;
+        }
+
+        virtual int startSequence_impl() override {
+            int ret;
+            if ((ret = client_->call_tuple(meth_str('*').c_str(), extras())) != DEVICE_OK)
+                return ret;
+            return DEVICE_OK;
+        }
+
+        virtual int stopSequence_impl() override {
+            int ret;
+            if ((ret = client_->call_tuple(meth_str('~').c_str(), extras())) != DEVICE_OK)
+                return ret;
+            return DEVICE_OK;
+        }
+
         virtual int OnExecute(MM::PropertyBase* pprop, MM::ActionType action) override {
             int ret;
             if (action == MM::BeforeGet) {
@@ -320,65 +382,30 @@ namespace rdlmm {
                     // SetSequencable(0) indicates that the property cannot be sequenced
                     pprop->SetSequenceable(0);
                 } else {
-                    long max_size = 0;
-                    if (cached_max_seq_size_ < 0) {
-                        // IsSequenceable is called multiple times throughout a properties lifetime,
-                        // often repeately. Rather than calling the remote device again and again,
-                        // we ONLY get the max sequence size once and cache it.
-                        // **WARNING** assumes each remote property has a static maximum sequence size
-                        if ((ret = client_->call_get_tuple<long>(meth_str('^').c_str(), max_size, extras())) != DEVICE_OK)
-                            max_size = 0;
-                        else
-                            cached_max_seq_size_ = max_size;
-                    } else {
-                        max_size = cached_max_seq_size_;
-                    }
-                    pprop->SetSequenceable(static_cast<long>(max_size));
+                    long max_size;
+                    if (GetMaxSequenceSize(max_size) != DEVICE_OK)
+                        max_size = 0;
+                    pprop->SetSequenceable(max_size);
                 }
             } else if (isSequencable_ && action == MM::AfterLoadSequence) {
                 // send the sequence to the device
                 std::vector<sys::StringT> sequence = pprop->GetSequence();
-
-                long seqsize    = static_cast<long>(sequence.size());
-                long remotesize = 0;
-                if ((ret = client_->notify_tuple(meth_str('0').c_str(), extras())) != DEVICE_OK) {
-                    return ret;
-                }
-                for (int i = 0; i < seqsize; i++) {
-                    // add the value
-                    LocalT localv   = Parse<LocalT>(sequence[i]);
-                    RemoteT remotev = to_remote(localv);
-                    if ((ret = client_->notify_tuple(meth_str('+').c_str(), withextras(remotev))) != DEVICE_OK) {
-                        return ret;
-                    }
-                    int size = i + 1;
-                    if (size % REMOTE_PROP_ARRAY_CHUNK_SIZE == 0 || size == seqsize) {
-                        // verify the current size
-                        if ((ret = client_->call_get_tuple<long>(meth_str('#').c_str(), remotesize, extras())) != DEVICE_OK) {
-                            return ret;
-                        }
-                        if (size != remotesize) {
-                            return ERR_WRITE_FAILED;
-                        }
-                    }
-                }
+                return SetSequence(sequence);
             } else if (isSequencable_ && action == MM::StartSequence) {
-                if ((ret = client_->call_tuple(meth_str('*').c_str(), extras())) != DEVICE_OK)
-                    return ret;
+                return StartSequence();
             } else if (isSequencable_ && action == MM::StopSequence) {
-                if ((ret = client_->call_tuple(meth_str('~').c_str(), extras())) != DEVICE_OK)
-                    return ret;
+                return StopSequence();
             }
             return DEVICE_OK;
         }
 
      protected:
         RemoteProp_Base() : client_(nullptr) {}
-        ClientT* client_;
+        rdl::json_client<rdl::jsonrpc_default_keys>* client_;
         ExtrasT extra_;
         rdl::delegate<rdl::RetT<RemoteT>, LocalT> to_remote_delegate_;
         rdl::delegate<rdl::RetT<LocalT>, RemoteT> to_local_delegate_;
-        long cached_max_seq_size_;
+        mutable long cached_max_seq_size_;
     };
 
     /////////////////////////////////////////////////////////////////////////////
@@ -500,7 +527,7 @@ namespace rdlmm {
                 CDeviceUtils::SleepMs(2000);
 
                 // Create a temporary json_client object and query the firmware version
-                rdl::json_client<rdl::jsonrpc_default_keys, JSONRCP_BUFFER_SIZE> client(adapter, adapter);
+                rdl::json_client<rdl::jsonrpc_default_keys> client = std::move(rdl::static_json_client<rdl::jsonrpc_default_keys, 512>(adapter, adapter));
 
                 int firmware_version = 0;
 
